@@ -1,399 +1,535 @@
 <!DOCTYPE html>
 <html lang="vi">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bảng với TailwindCSS & Flowbite</title>
-  <link rel="icon" type="image/png" href="https://akacam.io/wp-content/uploads/2023/11/favicon.png">
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <link href="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.css" rel="stylesheet" />
+  <title>Q100 | AkaCam/QAI/FPT Software</title>
+  <link rel="icon" type="image/png" href="./assets/img/favicon.png" />
+  <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.css" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/selecto@1.26.2/dist/selecto.min.js"></script>
 </head>
-
-<body class="p-6">
-  <header class="p-4 mb-4">
-    <div class="flex justify-between items-center">
-      <img src="https://fptsoftware.com/-/media/project/fpt-software/fso/uplift/home/logo_fpt_text_black.png?modified=20240111094946" alt="Logo trái" class="h-12">
-      <img src="https://akacam.io/wp-content/uploads/2023/11/akacam-logo.png" alt="Logo phải" class="h-12">
+<body class="p-4 sm:p-6 bg-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="p-4 mb-4 bg-white shadow rounded-lg">
+    <div class="flex flex-col sm:flex-row justify-between items-center">
+      <img src="./assets/img/logo_fpt_text_black.webp" alt="FPT Logo" class="h-10 sm:h-12 mb-2 sm:mb-0" />
+      <img src="./assets/img/akacam-logo.png" alt="AkaCam Logo" class="h-10 sm:h-12" />
     </div>
   </header>
 
+  <!-- Main Content -->
   <div class="container mx-auto">
     <div class="border-b border-gray-300 mb-4 w-full"></div>
-    <h1 class="text-2xl font-bold mb-4">Bảng dữ liệu</h1>
+    <h1 class="text-xl sm:text-2xl font-bold mb-4 text-gray-800">Bảng dữ liệu</h1>
 
-    <div class="flex justify-between items-center mb-4">
-      <input type="text" id="searchInput" placeholder="Tìm kiếm..." class="border border-gray-300 rounded p-2 w-full max-w-xs" oninput="filterData()" />
-      <button type="button" class="bg-green-500 text-white px-4 py-2 rounded"
-        onclick="openModal('add')">Add</button>
+    <!-- Search and Add Button -->
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+      <form class="w-full sm:w-auto max-w-md">
+        <label for="default-search" class="sr-only">Tìm kiếm</label>
+        <div class="relative">
+          <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
+            <svg class="w-4 h-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+            </svg>
+          </div>
+          <input type="search" id="default-search" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Tìm kiếm..." required />
+          <button type="submit" class="text-white absolute end-2.5 bottom-2.5 bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-3 sm:px-4 py-2">Tìm kiếm</button>
+        </div>
+      </form>
+      <button type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-4 sm:px-5 py-2.5 w-full sm:w-auto" data-action="add">Thêm</button>
     </div>
 
-    <div class="relative overflow-x-auto sm:rounded-lg">
-      <table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-        <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+    <!-- Table -->
+    <div class="relative overflow-x-auto sm:rounded-lg bg-white shadow">
+      <table class="w-full text-sm text-left text-gray-500">
+        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
           <tr>
-            <th scope="col" class="px-6 py-3">ID</th>
-            <th scope="col" class="px-6 py-3">NAME</th>
-            <th scope="col" class="px-6 py-3">ACTIONS</th>
+            <th scope="col" class="px-4 sm:px-6 py-3">ID</th>
+            <th scope="col" class="px-4 sm:px-6 py-3">Họ và tên</th>
+            <th scope="col" class="px-4 sm:px-6 py-3">Ảnh</th>
+            <th scope="col" class="px-4 sm:px-6 py-3">Hành động</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
       </table>
-
-      <nav class="flex items-center flex-col flex-wrap md:flex-row justify-between pt-4" aria-label="Table navigation">
-        <span class="text-sm font-normal text-gray-500 dark:text-gray-400 mb-4 md:mb-0 block w-full md:inline md:w-auto">
-          Showing <span id="startRecord" class="font-semibold text-gray-900 dark:text-white"></span> -
-          <span id="endRecord" class="font-semibold text-gray-900 dark:text-white"></span> of
-          <span id="totalRecords" class="font-semibold text-gray-900 dark:text-white"></span>
+      <nav class="flex flex-col sm:flex-row items-center justify-between p-4" aria-label="Table navigation">
+        <span class="text-sm font-normal text-gray-500 mb-4 sm:mb-0 w-full sm:w-auto text-center sm:text-left">
+          Showing <span id="startRecord"></span> - <span id="endRecord"></span> of <span id="totalRecords"></span>
         </span>
-        <ul id="pagination" class="inline-flex -space-x-px rtl:space-x-reverse text-sm h-8"></ul>
+        <ul id="pagination" class="inline-flex -space-x-px text-sm h-8 flex-wrap justify-center cursor-pointer"></ul>
       </nav>
     </div>
 
-    <!-- Modal chung cho Add/Edit -->
-    <div id="crudModal" tabindex="-1" class="hidden fixed top-0 left-0 w-full h-full flex items-center justify-center z-50">
-      <div id="modalOverlay" class="fixed inset-0 bg-gray-600 opacity-50" onclick="closeModal()"></div>
-      <div class="relative bg-white rounded-lg shadow dark:bg-gray-700 w-3/4 max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600 border-gray-200">
-          <h3 id="modalTitle" class="text-xl font-semibold text-gray-900 dark:text-white">Thêm/Sửa</h3>
-          <button type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" onclick="closeModal()">
+    <!-- CRUD Modal -->
+    <div id="crudModal" class="hidden fixed top-0 left-0 w-full h-full flex items-center justify-center z-50">
+      <div id="modalOverlay" class="fixed inset-0 bg-gray-600 opacity-50"></div>
+      <div class="relative bg-white rounded-lg shadow w-full sm:w-3/4 max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
+        <div class="flex items-center justify-between p-5 border-b rounded-t">
+          <h3 id="modalTitle" class="text-lg sm:text-xl font-semibold text-gray-900">Thêm/Sửa</h3>
+          <button type="button" class="text-gray-400 hover:bg-gray-200 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center" data-close>
             <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
             </svg>
-            <span class="sr-only">Close modal</span>
           </button>
         </div>
-        <div class="p-4 md:p-5 space-y-4 flex-grow overflow-y-auto">
-          <input type="hidden" id="editId">
-
-          <div class="flex gap-4">
-            <div class="border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center p-10 cursor-pointer relative mx-auto w-1/2" id="dropzone">
-              <span class="text-gray-500">Kéo & thả tệp vào đây hoặc bấm để tải lên</span>
-              <input type="file" id="fileInput" class="hidden" accept="image/*" multiple>
-              <div id="imagePreview" class="flex flex-wrap gap-2"></div>
+        <div class="p-5 space-y-4">
+          <input type="hidden" id="editId" />
+          <div class="flex flex-col sm:flex-row gap-4 h-auto sm:h-96">
+            <div class="w-full sm:w-1/2 min-h-[200px] ">
+              <div class="border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-6 sm:p-10 cursor-pointer w-full relative" id="dropzone">
+              <div class="text-gray-500 text-center" id="placeholderText">Kéo & thả tệp vào đây hoặc bấm để tải lên</div>
+              <input type="file" id="fileInput" class="hidden" accept="image/*" multiple />
+              <div id="imagePreview" class="grid grid-cols-2 sm:grid-cols-3 gap-4 hidden overflow-auto w-full"></div>
+              <button id="deleteSelected" class="mt-4 bg-red-500 text-white px-4 py-2 rounded hidden">Xóa đã chọn</button>
               <div id="loadingSpinner" class="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 hidden">
                 <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
               </div>
+              </div>
+              <button id="deleteAll" class="mt-4 bg-red-600 text-white px-4 py-2 rounded hidden">Xóa tất cả</button>
             </div>
-            <fieldset class="border border-gray-300 rounded-lg p-4 w-1/2">
-              <legend class="text-lg font-medium mb-2">Thông tin</legend>
-              <label class="block mb-2">Tên:</label>
-              <input type="text" id="nameInput" class="border border-gray-300 p-2 w-full rounded mb-4" placeholder="Nhập tên">
+            <fieldset class="border border-gray-300 rounded-lg p-4 w-full sm:w-1/2">
+              <legend class="text-base sm:text-lg font-medium mb-2">Thông tin</legend>
+              <label class="block mb-2 text-gray-700">Tên:</label>
+              <input type="text" id="nameInput" class="border border-gray-300 p-2 w-full rounded mb-4 focus:ring-blue-500 focus:border-blue-500" placeholder="Nhập tên" />
             </fieldset>
           </div>
         </div>
-        <div class="flex items-center p-4 md:p-5 border-t border-gray-200 rounded-b dark:border-gray-600">
-          <button id="saveButton" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 w-full">Lưu</button>
+        <div class="flex items-center p-5 border-t">
+          <button id="saveButton" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 w-full">Lưu</button>
         </div>
       </div>
     </div>
 
-
-    <!-- Dropzone overlay -->
-    <div id="dropzone-overlay"
-      class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-      <div
-        class="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-white bg-gray-700 bg-opacity-75 text-white text-lg font-bold">
+    <!-- Dropzone Overlay -->
+    <div id="dropzone-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+      <div class="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-white bg-gray-700 bg-opacity-75 text-white text-lg font-bold">
         Kéo & thả tệp vào đây
       </div>
     </div>
 
-    <!-- Modal Preview Hình Ảnh -->
-    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50">
-      <div class="relative bg-white p-4 rounded-lg shadow-lg max-w-3xl">
-        <button class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center"
-          onclick="closeImageModal()">×</button>
-        <img id="modalImage" class="max-w-full max-h-[80vh] object-contain">
-        <div class="flex justify-center gap-4 mt-4">
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" onclick="rotateImage(-90)">↺</button>
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" onclick="rotateImage(90)">↻</button>
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" onclick="flipImage()">⟷</button>
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" onclick="zoomImage(1.1)">+</button>
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" onclick="zoomImage(0.9)">-</button>
+    <!-- Image Preview Modal -->
+    <div id="imageModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
+      <div class="bg-white rounded-lg w-full sm:w-[95vw] h-[90vh] flex flex-col">
+        <div class="flex justify-between p-4 border-b">
+          <h3 class="text-xl font-semibold">Xem ảnh</h3>
+          <button id="closeImageModal" class="text-gray-500 hover:text-gray-700">×</button>
+        </div>
+        <div class="flex-1 p-4 overflow-auto flex items-center justify-center">
+          <img id="modalImage" class="max-w-full max-h-full mx-auto hidden" />
+        </div>
+        <div class="p-4 border-t flex justify-end gap-2">
+          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-rotate="-90">↺</button>
+          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-rotate="90">↻</button>
+          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-flip>⟷</button>
+          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-zoom="1.1">+</button>
+          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-zoom="0.9">-</button>
+          <button class="bg-green-500 text-white px-4 py-2 rounded" data-download>Tải xuống</button>
         </div>
       </div>
     </div>
-
-
   </div>
 
-    <script>
-      let data = [];
-      let currentPage = 1;
-      const rowsPerPage = 5;
-      let rotation = 0, scale = 1, flipped = false;
-      let modalMode = 'add';
+  <!-- JavaScript -->
+  <script>
+    function dataURItoBlob(dataURI) {
+      const [header, data] = dataURI.split(',');
+      const mime = header.match(/:(.*?);/)[1];
+      const binary = atob(data);
+      const array = [];
+      for (let i = 0; i < binary.length; i++) array.push(binary.charCodeAt(i));
+      return new Blob([new Uint8Array(array)], { type: mime });
+    }
 
-      const dropzoneOverlay = document.getElementById('dropzone-overlay');
-      const loadingSpinner = document.getElementById('loadingSpinner');
+    const state = {
+      data: [],
+      currentPage: 1,
+      rowsPerPage: 5,
+      modalMode: 'add',
+      imageState: { rotation: 0, scale: 1, flipped: false }
+    };
 
-      async function fetchData() {
-        const response = await fetch('https://jsonplaceholder.typicode.com/users');
-        data = await response.json();
+    const elements = {
+      tableBody: document.getElementById('tableBody'),
+      pagination: document.getElementById('pagination'),
+      startRecord: document.getElementById('startRecord'),
+      endRecord: document.getElementById('endRecord'),
+      totalRecords: document.getElementById('totalRecords'),
+      searchInput: document.getElementById('default-search'),
+      crudModal: document.getElementById('crudModal'),
+      modalTitle: document.getElementById('modalTitle'),
+      saveButton: document.getElementById('saveButton'),
+      nameInput: document.getElementById('nameInput'),
+      editId: document.getElementById('editId'),
+      dropzone: document.getElementById('dropzone'),
+      fileInput: document.getElementById('fileInput'),
+      imagePreview: document.getElementById('imagePreview'),
+      placeholderText: document.getElementById('placeholderText'),
+      loadingSpinner: document.getElementById('loadingSpinner'),
+      dropzoneOverlay: document.getElementById('dropzone-overlay'),
+      imageModal: document.getElementById('imageModal'),
+      modalImage: document.getElementById('modalImage'),
+      deleteSelected: document.getElementById('deleteSelected'),
+      deleteAll: document.getElementById('deleteAll'),
+      closeImageModal: document.getElementById('closeImageModal')
+    };
+
+    const debounce = (func, wait) => {
+      let timeout;
+      return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+      };
+    };
+
+    const fetchData = async () => {
+      try {
+        const response = await fetch('https://dummyjson.com/users');
+        if (!response.ok) throw new Error('Không thể tải dữ liệu');
+        const json = await response.json();
+        state.data = json.users.map(user => ({
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`,
+          image: user.image
+        }));
         renderTable();
+      } catch (error) {
+        console.error('Lỗi khi tải dữ liệu:', error);
+        alert('Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.');
+      }
+    };
+
+    const getFilteredData = () => {
+      const query = elements.searchInput.value.toLowerCase();
+      return state.data.filter(item => item.name.toLowerCase().includes(query));
+    };
+
+    const renderTable = () => {
+      const filteredData = getFilteredData();
+      const totalRecords = filteredData.length;
+      const startIndex = (state.currentPage - 1) * state.rowsPerPage;
+      const paginatedData = filteredData.slice(startIndex, startIndex + state.rowsPerPage);
+
+      elements.tableBody.innerHTML = '';
+      if (filteredData.length === 0) {
+        elements.tableBody.innerHTML = '<tr><td colspan="4" class="text-center py-8">Không tìm thấy kết quả</td></tr>';
+      } else {
+        const fragment = document.createDocumentFragment();
+        paginatedData.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.className = 'bg-white border-b hover:bg-gray-50';
+          tr.innerHTML = `
+            <th scope="row" class="px-4 sm:px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${item.id}</th>
+            <td class="px-4 sm:px-6 py-4">${item.name}</td>
+            <td class="px-4 sm:px-6 py-4">
+              <img src="${item.image}" alt="${item.name}" class="h-10 w-10 object-cover rounded-full cursor-pointer transform transition-transform duration-300 hover:scale-150" onclick="openImageModal('${item.image}')">
+            </td>
+            <td class="px-4 sm:px-6 py-4 flex gap-2">
+              <button class="bg-blue-500 text-white px-3 py-1 rounded text-sm" data-edit="${item.id},${item.name},${item.image}">Sửa</button>
+              <button class="bg-red-500 text-white px-3 py-1 rounded text-sm" data-delete="${item.id}">Xóa</button>
+            </td>`;
+          fragment.appendChild(tr);
+        });
+        elements.tableBody.appendChild(fragment);
       }
 
-      function renderTable() {
-        const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = '';
+      elements.startRecord.textContent = totalRecords > 0 ? startIndex + 1 : 0;
+      elements.endRecord.textContent = Math.min(startIndex + state.rowsPerPage, totalRecords);
+      elements.totalRecords.textContent = totalRecords;
+      renderPagination(totalRecords);
+    };
 
-        const searchQuery = document.getElementById('searchInput').value.toLowerCase();
-        const filteredData = data.filter(item => item.name.toLowerCase().includes(searchQuery));
+    const renderPagination = (totalRecords) => {
+      const totalPages = Math.ceil(totalRecords / state.rowsPerPage);
+      elements.pagination.innerHTML = '';
+      const fragment = document.createDocumentFragment();
 
-        const totalRecords = filteredData.length;
-        const startIndex = (currentPage - 1) * rowsPerPage;
-        const paginatedData = filteredData.slice(startIndex, startIndex + rowsPerPage);
+      fragment.appendChild(createPaginationItem(state.currentPage === 1, 'Trước', prevPage));
+      for (let i = 1; i <= totalPages; i++) {
+        fragment.appendChild(createPaginationItem(
+          state.currentPage === i,
+          i,
+          () => goToPage(i),
+          state.currentPage === i ? 'text-blue-600 bg-blue-50' : 'bg-white hover:bg-gray-100 hover:text-gray-700'
+        ));
+      }
+      fragment.appendChild(createPaginationItem(state.currentPage === totalPages, 'Sau', nextPage));
+      elements.pagination.appendChild(fragment);
+    };
 
-        document.getElementById('startRecord').textContent = totalRecords > 0 ? startIndex + 1 : 0;
-        document.getElementById('endRecord').textContent = Math.min(startIndex + rowsPerPage, totalRecords);
-        document.getElementById('totalRecords').textContent = totalRecords;
+    const createPaginationItem = (isDisabled, text, onClick, extraClass = '') => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.textContent = text;
+      a.className = `px-3 py-2 flex items-center justify-center border border-gray-300 rounded-lg mx-1 text-sm ${extraClass}`;
+      if (isDisabled) a.className += ' cursor-not-allowed opacity-50 bg-gray-200 text-gray-400';
+      else a.addEventListener('click', onClick);
+      li.appendChild(a);
+      return li;
+    };
 
-        paginatedData.forEach(item => {
-          tbody.innerHTML += `
-            <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600">
-              <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">${item.id}</th>
-              <td class="px-6 py-4">${item.name}</td>
-              <td class="px-6 py-4">
-                <button class="bg-blue-500 text-white px-3 py-1 rounded mr-2" onclick="openModal('edit', ${item.id}, '${item.name}')">Edit</button>
-                <button class="bg-red-500 text-white px-3 py-1 rounded">Delete</button>
-              </td>
-            </tr>`;
+    const prevPage = () => { if (state.currentPage > 1) { state.currentPage--; renderTable(); } };
+    const nextPage = () => {
+      const totalPages = Math.ceil(getFilteredData().length / state.rowsPerPage);
+      if (state.currentPage < totalPages) { state.currentPage++; renderTable(); }
+    };
+    const goToPage = (page) => { state.currentPage = page; renderTable(); };
+
+    const openModal = (mode, id = null, name = '', image = '') => {
+      state.modalMode = mode;
+      elements.modalTitle.textContent = mode === 'add' ? 'Thêm dữ liệu' : 'Sửa dữ liệu';
+      elements.saveButton.textContent = mode === 'add' ? 'Thêm' : 'Lưu';
+      elements.nameInput.value = name;
+      elements.editId.value = id || '';
+      elements.imagePreview.innerHTML = '';
+      if (image) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'relative aspect-square';
+        const img = document.createElement('img');
+        img.src = image;
+        img.className = 'h-full w-full rounded-lg object-cover cursor-pointer';
+        wrapper.appendChild(img);
+        elements.imagePreview.appendChild(wrapper);
+        elements.placeholderText.classList.add('hidden');
+        elements.imagePreview.classList.remove('hidden');
+        elements.deleteAll.classList.remove('hidden');
+      } else {
+        elements.placeholderText.classList.remove('hidden');
+        elements.imagePreview.classList.add('hidden');
+        elements.deleteAll.classList.add('hidden');
+      }
+      elements.crudModal.classList.remove('hidden');
+      resetSelection();
+    };
+
+    const closeModal = () => {
+      elements.crudModal.classList.add('hidden');
+      resetSelection();
+      elements.imagePreview.querySelectorAll('.aspect-square').forEach(el => {
+        el.classList.remove('border-2', 'border-blue-500');
+      });
+    };
+
+    const saveData = () => {
+      const name = elements.nameInput.value.trim();
+      const id = elements.editId.value;
+      if (!name) {
+        alert('Vui lòng nhập tên!');
+        return;
+      }
+
+      if (state.modalMode === 'add') {
+        const newId = state.data.length ? Math.max(...state.data.map(item => item.id)) + 1 : 1;
+        state.data.push({ id: newId, name, image: 'https://robohash.org/default.png' });
+        alert(`Đã thêm: ${name}`);
+      } else {
+        const index = state.data.findIndex(item => item.id == id);
+        if (index !== -1) {
+          state.data[index].name = name;
+          alert(`Đã cập nhật: ${name}`);
+        }
+      }
+      renderTable();
+      closeModal();
+    };
+
+    const handleFileUpload = (files) => {
+      const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+      if (!validFiles.length) return;
+
+      elements.placeholderText.classList.add('hidden');
+      elements.imagePreview.classList.remove('hidden');
+      validFiles.forEach(file => {
+        const blobURL = URL.createObjectURL(file);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'relative aspect-square';
+        const img = document.createElement('img');
+        img.src = blobURL;
+        img.className = 'h-full w-full rounded-lg object-cover cursor-pointer border-2';
+        img.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openImageModal(blobURL);
         });
 
-        renderPagination();
+        const removeBtn = document.createElement('button');
+        removeBtn.innerHTML = '×';
+        removeBtn.className = 'absolute top-2 right-2 bg-red-500 text-white rounded-md w-6 h-6 flex items-center justify-center';
+        removeBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          URL.revokeObjectURL(img.src);
+          wrapper.remove();
+          if (elements.imagePreview.children.length === 0) {
+            elements.deleteAll.classList.add('hidden');
+          }
+        });
+
+        wrapper.appendChild(img);
+        wrapper.appendChild(removeBtn);
+        elements.imagePreview.appendChild(wrapper);
+      });
+
+      if (elements.imagePreview.children.length > 0) {
+        elements.deleteAll.classList.remove('hidden');
       }
+    };
 
-      function renderPagination() {
-        const totalPages = Math.ceil(data.length / rowsPerPage);
-        const paginationContainer = document.getElementById("pagination");
-        paginationContainer.innerHTML = '';
+    const openImageModal = (src) => {
+      elements.modalImage.src = src;
+      elements.modalImage.classList.remove('hidden');
+      elements.imageModal.classList.remove('hidden');
+    };
 
-        paginationContainer.insertAdjacentHTML("beforeend",
-          `<li>
-            <a ${currentPage === 1 ? 'class="cursor-not-allowed opacity-50 px-3 h-8 flex items-center justify-center border border-gray-300 bg-gray-200 text-gray-400 rounded-s-lg"' :
-            'onclick="prevPage()" class="px-3 h-8 flex items-center justify-center border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-700 rounded-s-lg"'}>Previous</a>
-          </li>`
-        );
+    const closeImageModal = () => elements.imageModal.classList.add('hidden');
 
-        for (let i = 1; i <= totalPages; i++) {
-          paginationContainer.insertAdjacentHTML("beforeend",
-            `<li>
-              <a onclick="goToPage(${i})" class="px-3 h-8 flex items-center justify-center border border-gray-300 ${currentPage === i ? 'text-blue-600 bg-blue-50' : 'bg-white hover:bg-gray-100 hover:text-gray-700'}">${i}</a>
-            </li>`
-          );
-        }
+    const rotateImage = (deg) => { state.imageState.rotation += deg; updateTransform(); };
+    const zoomImage = (factor) => { state.imageState.scale *= factor; updateTransform(); };
+    const flipImage = () => { state.imageState.flipped = !state.imageState.flipped; updateTransform(); };
+    const updateTransform = () => {
+      const { rotation, scale, flipped } = state.imageState;
+      elements.modalImage.style.transform = `scale(${flipped ? -scale : scale}, ${scale}) rotate(${rotation}deg)`;
+    };
 
-        paginationContainer.insertAdjacentHTML("beforeend",
-          `<li>
-            <a ${currentPage === totalPages ? 'class="cursor-not-allowed opacity-50 px-3 h-8 flex items-center justify-center border border-gray-300 bg-gray-200 text-gray-400 rounded-e-lg"' :
-            'onclick="nextPage()" class="px-3 h-8 flex items-center justify-center border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-700 rounded-e-lg"'}>Next</a>
-          </li>`
-        );
+    const downloadTransformedImage = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        if (state.imageState.flipped) ctx.scale(-1, 1);
+        ctx.rotate((state.imageState.rotation * Math.PI) / 180);
+        ctx.scale(state.imageState.scale, state.imageState.scale);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        ctx.restore();
+        const dataURI = canvas.toDataURL('image/png');
+        const blob = dataURItoBlob(dataURI);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'transformed_image.png';
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+      img.src = elements.modalImage.src;
+    };
+
+    let isSelecting = false;
+    const selecto = new Selecto({
+      container: document.body,
+      selectableTargets: ['#imagePreview .aspect-square'],
+      selectByClick: true,
+      selectFromInside: false,
+      continueSelect: true,
+      hitRate: 0
+    });
+
+    let selectedElements = [];
+    selecto.on('dragStart', (e) => {
+      isSelecting = true;
+      const target = e.inputEvent.target;
+      if (target.tagName === 'BUTTON' || target.tagName === 'IMG') {
+        e.stop();
       }
+    });
 
-      function prevPage() {
-        if (currentPage > 1) {
-          currentPage--;
-          renderTable();
-        }
+    selecto.on('select', (e) => {
+      e.removed.forEach(el => el.classList.remove('border-2', 'border-blue-500'));
+      e.added.forEach(el => el.classList.add('border-2', 'border-blue-500'));
+      selectedElements = e.selected;
+      elements.deleteSelected.classList.toggle('hidden', selectedElements.length === 0);
+    });
+
+    selecto.on('dragEnd', (e) => {
+      setTimeout(() => { 
+        isSelecting = false; 
+        elements.fileInput.disabled = false;
+      }, 100);
+    });
+
+    elements.deleteSelected.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      selectedElements.forEach(el => {
+        const img = el.querySelector('img');
+        URL.revokeObjectURL(img.src);
+        el.remove();
+      });
+      selectedElements = [];
+      elements.deleteSelected.classList.add('hidden');
+      if (elements.imagePreview.children.length === 0) {
+        elements.deleteAll.classList.add('hidden');
       }
+    });
 
-      function nextPage() {
-        if (currentPage * rowsPerPage < data.length) {
-          currentPage++;
-          renderTable();
-        }
+    elements.deleteAll.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      Array.from(elements.imagePreview.children).forEach(wrapper => {
+        const img = wrapper.querySelector('img');
+        URL.revokeObjectURL(img.src);
+      });
+      elements.imagePreview.innerHTML = '';
+      elements.placeholderText.classList.remove('hidden');
+      elements.imagePreview.classList.add('hidden');
+      resetSelection();
+      elements.deleteAll.classList.add('hidden');
+    });
+
+    const resetSelection = () => {
+      selectedElements.forEach(el => el.classList.remove('border-2', 'border-blue-500'));
+      selectedElements = [];
+      elements.deleteSelected.classList.add('hidden');
+    };
+
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      if (target.dataset.action === 'add') openModal('add');
+      if (target.dataset.close || target.closest('[data-close]')) closeModal();
+      if (target.id === 'closeImageModal') closeImageModal();
+      if (target.dataset.edit) {
+        const [id, name, image] = target.dataset.edit.split(',');
+        openModal('edit', id, name, image);
       }
-
-      function goToPage(page) {
-        currentPage = page;
+      if (target.dataset.rotate) rotateImage(parseInt(target.dataset.rotate));
+      if (target.dataset.zoom) zoomImage(parseFloat(target.dataset.zoom));
+      if (target.dataset.flip) flipImage();
+      if (target.dataset.delete) {
+        state.data = state.data.filter(item => item.id != target.dataset.delete);
         renderTable();
       }
+      if (target.dataset.download) downloadTransformedImage();
+    });
 
-      function filterData() {
-        currentPage = 1;
-        renderTable();
-      }
+    elements.searchInput.addEventListener('input', debounce(() => {
+      state.currentPage = 1;
+      renderTable();
+    }, 300));
 
-      // Modal handlers
-      function openModal(mode, id = null, name = '') {
-        modalMode = mode;
-        const modal = document.getElementById('crudModal');
-        const title = document.getElementById('modalTitle');
-        const saveButton = document.getElementById('saveButton');
-        const nameInput = document.getElementById('nameInput');
-        const editId = document.getElementById('editId');
+    elements.dropzone.addEventListener('click', () => elements.fileInput.click());
+    elements.fileInput.addEventListener('change', (e) => handleFileUpload(e.target.files));
+    elements.dropzone.addEventListener('dragover', (e) => e.preventDefault());
+    elements.dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (!isSelecting) handleFileUpload(e.dataTransfer.files);
+    });
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      elements.dropzoneOverlay.classList.remove('hidden');
+    });
+    document.addEventListener('dragleave', () => elements.dropzoneOverlay.classList.add('hidden'));
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      elements.dropzoneOverlay.classList.add('hidden');
+      if (!isSelecting) handleFileUpload(e.dataTransfer.files);
+    });
+    elements.saveButton.addEventListener('click', saveData);
 
-        if (mode === 'add') {
-          title.textContent = 'Thêm dữ liệu';
-          saveButton.textContent = 'Thêm';
-          saveButton.onclick = saveData;
-          nameInput.value = '';
-          editId.value = '';
-        } else {
-          title.textContent = 'Sửa dữ liệu';
-          saveButton.textContent = 'Lưu';
-          saveButton.onclick = saveData;
-          nameInput.value = name;
-          editId.value = id;
-        }
-
-        document.getElementById('imagePreview').innerHTML = '';
-        modal.classList.remove('hidden');
-      }
-
-      function closeModal() {
-        document.getElementById('crudModal').classList.add('hidden');
-      }
-
-      function saveData() {
-        const name = document.getElementById('nameInput').value;
-        const id = document.getElementById('editId').value;
-
-        if (name) {
-          if (modalMode === 'add') {
-            const newId = Math.max(...data.map(item => item.id)) + 1;
-            data.push({ id: newId, name });
-            alert(`Đã thêm: ${name}`);
-          } else {
-            const index = data.findIndex(item => item.id == id);
-            if (index !== -1) {
-              data[index].name = name;
-              alert(`Đã cập nhật: ${name}`);
-            }
-          }
-          renderTable();
-          closeModal();
-        }
-      }
-
-      // File upload handlers
-      document.getElementById('dropzone').addEventListener('click', () => {
-        document.getElementById('fileInput').click();
-      });
-
-      document.getElementById('fileInput').addEventListener('change', (event) => {
-        handleFileUpload(event.target.files);
-      });
-
-      document.addEventListener('dragover', (event) => {
-        event.preventDefault();
-        dropzoneOverlay.classList.remove('hidden');
-      });
-
-      document.addEventListener('dragleave', (event) => {
-        dropzoneOverlay.classList.add('hidden');
-      });
-
-      document.addEventListener('drop', (event) => {
-        event.preventDefault();
-        dropzoneOverlay.classList.add('hidden');
-        handleFileUpload(event.dataTransfer.files);
-      });
-
-      document.getElementById('dropzone').addEventListener('dragover', (event) => {
-        event.preventDefault();
-      });
-
-      document.getElementById('dropzone').addEventListener('drop', (event) => {
-        event.preventDefault();
-        handleFileUpload(event.dataTransfer.files);
-      });
-
-      function handleFileUpload(files) {
-        const previewContainer = document.getElementById('imagePreview');
-        const dropzoneText = document.querySelector('#dropzone span'); 
-        loadingSpinner.classList.remove('hidden');
-
-        let loadedImages = 0;
-        const totalImages = Array.from(files).filter(file => file.type.startsWith('image/')).length;
-
-        if (totalImages === 0) {
-          loadingSpinner.classList.add('hidden');
-          return;
-        }
-
-        if (dropzoneText) {
-          dropzoneText.remove();
-        }
-
-        for (const file of files) {
-          if (file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-              const imageWrapper = document.createElement('div');
-              imageWrapper.className = "relative inline-block";
-
-              const img = document.createElement('img');
-              img.src = event.target.result;
-              img.className = "max-w-[100px] h-auto object-contain cursor-pointer";
-              img.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openImageModal(event.target.result);
-              }
-
-              const removeBtn = document.createElement('button');
-              removeBtn.innerHTML = "×";
-              removeBtn.className = "absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center";
-              removeBtn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                imageWrapper.remove();
-              }
-
-              imageWrapper.appendChild(img);
-              imageWrapper.appendChild(removeBtn);
-              previewContainer.appendChild(imageWrapper);
-
-              loadedImages++;
-              if (loadedImages === totalImages) {
-                loadingSpinner.classList.add('hidden');
-              }
-            };
-            reader.readAsDataURL(file);
-          }
-        }
-      }
-
-      // Image Modal handlers
-      function openImageModal(src) {
-        const modal = document.getElementById('imageModal');
-        const modalImage = document.getElementById('modalImage');
-        modalImage.src = src;
-        rotation = 0;
-        scale = 1;
-        flipped = false;
-        updateTransform();
-        modal.classList.remove('hidden');
-      }
-
-      function closeImageModal() {
-        document.getElementById('imageModal').classList.add('hidden');
-      }
-
-      function rotateImage(deg) {
-        rotation += deg;
-        updateTransform();
-      }
-
-      function zoomImage(factor) {
-        scale *= factor;
-        updateTransform();
-      }
-
-      function flipImage() {
-        flipped = !flipped;
-        updateTransform();
-      }
-
-      function updateTransform() {
-        const modalImage = document.getElementById('modalImage');
-        modalImage.style.transform = `scale(${flipped ? -scale : scale}, ${scale}) rotate(${rotation}deg)`;
-      }
-
-      window.onload = fetchData;
-    </script>
-  </body>
+    window.onload = fetchData;
+  </script>
+</body>
 </html>
