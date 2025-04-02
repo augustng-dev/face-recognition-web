@@ -4,18 +4,114 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Q100 | AkaCam/QAI/FPT Software</title>
+  <!-- Favicon -->
   <link rel="icon" type="image/png" href="./assets/img/favicon.png" />
+  <!-- Flowbite CSS -->
   <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.css" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/selecto@1.26.2/dist/selecto.min.js"></script>
+  <!-- Tailwind CSS (CDN) -->
+  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+  <!-- Selecto CSS (Needed for the default selection box style) -->
+  <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/selecto@1.26.2/dist/selecto.min.css" /> -->
+  <!-- Custom Styles -->
+  <style>
+    /* Spinner for loading images in preview */
+    .image-spinner {
+      width: 2rem; height: 2rem; border-width: 3px; border-color: transparent;
+      border-top-color: #3b82f6; border-right-color: #3b82f6;
+      animation: spin 1s linear infinite; border-radius: 50%;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Base style for selectable items */
+    .selectable-item {
+        border: 3px solid transparent; /* Base transparent border for consistent spacing */
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* Smooth transition */
+        position: relative; /* Needed for absolute positioning of children */
+        overflow: hidden; /* Keep checkbox/overlay contained */
+    }
+
+    /* Style for selected items in image preview */
+    .selectable-item.is-selected {
+        border: 3px solid #3b82f6 !important; /* Blue border for selected */
+        box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+    }
+    /* Blue overlay for selected items */
+    .selectable-item.is-selected::after {
+        content: '';
+        position: absolute;
+        inset: 0; /* Cover the entire item */
+        background-color: rgba(59, 130, 246, 0.2); /* Semi-transparent blue */
+        pointer-events: none; /* Allow clicks through the overlay */
+        z-index: 15; /* Above image, below checkbox/remove button */
+    }
+
+     /* Ensure dropzone is focusable for paste event */
+     #dropzone:focus { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+     /* Style for the selection box itself (from Selecto) */
+     .selecto-selection {
+        background: rgba(59, 130, 246, 0.4); /* Semi-transparent blue */
+        border: 1px solid #3b82f6;
+        z-index: 100; /* Ensure selection box is visible */
+     }
+
+     /* Style for checkboxes */
+     .preview-checkbox {
+         appearance: none; /* Remove default browser styling */
+         width: 1.25rem; /* 20px */
+         height: 1.25rem; /* 20px */
+         border: 2px solid #9ca3af; /* gray-400 */
+         border-radius: 0.25rem; /* rounded */
+         background-color: rgba(255, 255, 255, 0.7); /* Semi-transparent white */
+         cursor: pointer;
+         position: absolute;
+         top: 0.375rem; /* top-1.5 */
+         left: 0.375rem; /* left-1.5 */
+         z-index: 25; /* Above overlay, below remove button */
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         transition: background-color 0.2s, border-color 0.2s;
+     }
+    .preview-checkbox:checked {
+        background-color: #3b82f6; /* blue-500 */
+        border-color: #2563eb; /* blue-600 */
+    }
+     /* Checkmark style */
+    .preview-checkbox:checked::before {
+        content: '✓';
+        color: white;
+        font-size: 0.875rem; /* text-sm */
+        font-weight: bold;
+        line-height: 1;
+     }
+     .preview-checkbox:focus {
+         outline: 2px solid #60a5fa; /* blue-400 */
+         outline-offset: 1px;
+     }
+     /* Ensure remove button is above checkbox */
+     .remove-preview-btn {
+         z-index: 30 !important;
+     }
+
+     /* Dynamic Grid Layout Classes */
+     #imagePreview.layout-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+     #imagePreview.layout-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+     #imagePreview.layout-3, #imagePreview.layout-multi { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+     /* Responsive adjustments if needed */
+     @media (min-width: 640px) { /* sm breakpoint */
+        #imagePreview.layout-multi { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+     }
+
+
+  </style>
 </head>
-<body class="p-4 sm:p-6 bg-gray-100 min-h-screen">
+<body class="p-4 sm:p-6 bg-gray-100 min-h-screen font-sans">
   <!-- Header -->
   <header class="p-4 mb-4 bg-white shadow rounded-lg">
     <div class="flex flex-col sm:flex-row justify-between items-center">
-      <img src="./assets/img/logo_fpt_text_black.webp" alt="FPT Logo" class="h-10 sm:h-12 mb-2 sm:mb-0" />
-      <img src="./assets/img/akacam-logo.png" alt="AkaCam Logo" class="h-10 sm:h-12" />
+      <img src="./assets/img/logo_fpt_text_black.webp" alt="FPT Logo" class="h-10 sm:h-12 mb-2 sm:mb-0 object-contain" />
+      <img src="./assets/img/akacam-logo.png" alt="AkaCam Logo" class="h-10 sm:h-12 object-contain" />
     </div>
   </header>
 
@@ -26,19 +122,18 @@
 
     <!-- Search and Add Button -->
     <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-      <form class="w-full sm:w-auto max-w-md">
-        <label for="default-search" class="sr-only">Tìm kiếm</label>
+      <form class="w-full sm:w-auto max-w-md" onsubmit="event.preventDefault();">
+        <label for="searchInput" class="sr-only">Tìm kiếm</label>
         <div class="relative">
           <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
             <svg class="w-4 h-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
               <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
             </svg>
           </div>
-          <input type="search" id="default-search" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Tìm kiếm..." required />
-          <button type="submit" class="text-white absolute end-2.5 bottom-2.5 bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-3 sm:px-4 py-2">Tìm kiếm</button>
+          <input type="search" id="searchInput" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500" placeholder="Tìm kiếm theo tên..." />
         </div>
       </form>
-      <button type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-4 sm:px-5 py-2.5 w-full sm:w-auto" data-action="add">Thêm</button>
+      <button type="button" id="addButton" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-4 sm:px-5 py-2.5 w-full sm:w-auto flex-shrink-0">Thêm</button>
     </div>
 
     <!-- Table -->
@@ -52,484 +147,1283 @@
             <th scope="col" class="px-4 sm:px-6 py-3">Hành động</th>
           </tr>
         </thead>
-        <tbody id="tableBody"></tbody>
+        <tbody id="tableBody">
+             <tr><td colspan="4" class="text-center py-8 text-gray-500">Đang tải dữ liệu...</td></tr>
+        </tbody>
       </table>
-      <nav class="flex flex-col sm:flex-row items-center justify-between p-4" aria-label="Table navigation">
+      <!-- Pagination -->
+      <nav class="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-gray-200" aria-label="Table navigation">
         <span class="text-sm font-normal text-gray-500 mb-4 sm:mb-0 w-full sm:w-auto text-center sm:text-left">
-          Showing <span id="startRecord"></span> - <span id="endRecord"></span> of <span id="totalRecords"></span>
+          Hiển thị <span id="startRecord" class="font-semibold text-gray-900">0</span>-<span id="endRecord" class="font-semibold text-gray-900">0</span> của <span id="totalRecords" class="font-semibold text-gray-900">0</span>
         </span>
         <ul id="pagination" class="inline-flex -space-x-px text-sm h-8 flex-wrap justify-center cursor-pointer"></ul>
       </nav>
     </div>
 
     <!-- CRUD Modal -->
-    <div id="crudModal" class="hidden fixed top-0 left-0 w-full h-full flex items-center justify-center z-50">
-      <div id="modalOverlay" class="fixed inset-0 bg-gray-600 opacity-50"></div>
-      <div class="relative bg-white rounded-lg shadow w-full sm:w-3/4 max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
-        <div class="flex items-center justify-between p-5 border-b rounded-t">
-          <h3 id="modalTitle" class="text-lg sm:text-xl font-semibold text-gray-900">Thêm/Sửa</h3>
-          <button type="button" class="text-gray-400 hover:bg-gray-200 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center" data-close>
-            <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
-            </svg>
-          </button>
-        </div>
-        <div class="p-5 space-y-4">
-          <input type="hidden" id="editId" />
-          <div class="flex flex-col sm:flex-row gap-4 h-auto sm:h-96">
-            <div class="w-full sm:w-1/2 min-h-[200px] ">
-              <div class="border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-6 sm:p-10 cursor-pointer w-full relative" id="dropzone">
-              <div class="text-gray-500 text-center" id="placeholderText">Kéo & thả tệp vào đây hoặc bấm để tải lên</div>
-              <input type="file" id="fileInput" class="hidden" accept="image/*" multiple />
-              <div id="imagePreview" class="grid grid-cols-2 sm:grid-cols-3 gap-4 hidden overflow-auto w-full"></div>
-              <button id="deleteSelected" class="mt-4 bg-red-500 text-white px-4 py-2 rounded hidden">Xóa đã chọn</button>
-              <div id="loadingSpinner" class="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 hidden">
-                <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-              </div>
-              <button id="deleteAll" class="mt-4 bg-red-600 text-white px-4 py-2 rounded hidden">Xóa tất cả</button>
+    <div id="crudModal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-50" id="modalOverlay"></div>
+        <div class="relative p-4 w-full max-w-4xl max-h-full mx-auto">
+            <!-- Modal content -->
+            <div class="relative bg-white rounded-lg shadow flex flex-col max-h-[90vh]">
+                <!-- Modal header -->
+                <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t flex-shrink-0">
+                    <h3 id="modalTitle" class="text-lg font-semibold text-gray-900"></h3>
+                    <button type="button" id="closeModalButton" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center" aria-label="Đóng modal">
+                        <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/></svg>
+                    </button>
+                </div>
+                <!-- Modal body -->
+                <div class="p-4 md:p-5 space-y-4 overflow-y-auto flex-grow">
+                    <input type="hidden" id="editId" />
+                    <div class="flex flex-col md:flex-row gap-4 h-auto md:min-h-[350px] md:max-h-[calc(80vh-180px)]">
+                        <!-- Dropzone Section -->
+                        <div class="w-full md:w-1/2 flex flex-col min-h-[300px]">
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-4 cursor-pointer w-full relative flex-grow min-h-0" id="dropzone" tabindex="0">
+                                <div class="text-gray-500 text-center pointer-events-none" id="placeholderText">
+                                    <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                    Kéo & thả tệp vào đây <br> hoặc <span class="text-blue-600 font-semibold">bấm để tải lên</span> <br> hoặc <span class="text-blue-600 font-semibold">paste (Ctrl+V)</span>
+                                </div>
+                                <input type="file" id="fileInput" class="hidden" accept="image/*" multiple />
+                                <div id="imagePreview" class="grid gap-2 hidden overflow-auto w-full h-full p-2">
+                                    <!-- Dynamic grid layout applied via JS -->
+                                    <!-- Image previews will be appended here -->
+                                </div>
+                                <button id="deleteSelectedButton" class="bg-red-600 text-white px-4 py-1.5 rounded-md text-sm hidden absolute bottom-2 left-1/2 transform -translate-x-1/2 z-20 shadow hover:bg-red-700">Xóa đã chọn</button>
+                            </div>
+                             <!-- Delete All button takes full width below dropzone -->
+                            <button id="deleteAllButton" class="mt-2 bg-red-600 text-white py-2 rounded-md text-sm hidden w-full hover:bg-red-700">Xóa tất cả ảnh</button>
+                        </div>
+                        <!-- Information Section -->
+                        <fieldset class="border border-gray-300 rounded-lg p-4 w-full md:w-1/2">
+                            <legend class="text-base font-medium mb-2 px-1">Thông tin</legend>
+                            <label for="nameInput" class="block mb-1 text-sm font-medium text-gray-900">Tên:</label>
+                            <input type="text" id="nameInput" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" placeholder="Nhập họ và tên" required />
+                            <!-- Add other fields here if needed -->
+                        </fieldset>
+                    </div>
+                </div>
+                <!-- Modal footer -->
+                <div class="flex items-center p-4 md:p-5 border-t border-gray-200 rounded-b flex-shrink-0">
+                    <button id="saveButton" type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center w-full">Lưu</button>
+                </div>
             </div>
-            <fieldset class="border border-gray-300 rounded-lg p-4 w-full sm:w-1/2">
-              <legend class="text-base sm:text-lg font-medium mb-2">Thông tin</legend>
-              <label class="block mb-2 text-gray-700">Tên:</label>
-              <input type="text" id="nameInput" class="border border-gray-300 p-2 w-full rounded mb-4 focus:ring-blue-500 focus:border-blue-500" placeholder="Nhập tên" />
-            </fieldset>
-          </div>
         </div>
-        <div class="flex items-center p-5 border-t">
-          <button id="saveButton" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 w-full">Lưu</button>
-        </div>
-      </div>
     </div>
 
-    <!-- Dropzone Overlay -->
-    <div id="dropzone-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-      <div class="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-white bg-gray-700 bg-opacity-75 text-white text-lg font-bold">
-        Kéo & thả tệp vào đây
+    <!-- Global Drag/Drop Overlay -->
+    <div id="dropzone-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-[100] pointer-events-none">
+      <div class="w-4/5 h-4/5 flex flex-col items-center justify-center border-4 border-dashed border-white bg-gray-800 bg-opacity-90 rounded-lg text-white text-2xl font-bold">
+         <svg class="w-16 h-16 mb-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        Thả file ảnh vào đây
       </div>
     </div>
 
     <!-- Image Preview Modal -->
-    <div id="imageModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
-      <div class="bg-white rounded-lg w-full sm:w-[95vw] h-[90vh] flex flex-col">
-        <div class="flex justify-between p-4 border-b">
-          <h3 class="text-xl font-semibold">Xem ảnh</h3>
-          <button id="closeImageModal" class="text-gray-500 hover:text-gray-700">×</button>
+    <div id="imageModal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-[60] justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-80" id="imageModalOverlay"></div>
+        <div class="relative p-4 w-full max-w-5xl max-h-full">
+             <!-- Modal content -->
+            <div class="relative bg-white rounded-lg shadow max-h-[95vh] flex flex-col">
+                 <!-- Modal header -->
+                <div class="flex items-center justify-between p-4 border-b rounded-t flex-shrink-0">
+                    <h3 class="text-xl font-semibold text-gray-900">Xem & Chỉnh sửa ảnh</h3>
+                    <button id="closeImageModalButton" type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center" aria-label="Đóng xem ảnh">
+                        <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/></svg>
+                    </button>
+                </div>
+                 <!-- Modal body -->
+                <div class="p-4 flex-grow overflow-auto flex items-center justify-center bg-gray-100 min-h-[300px]">
+                    <img id="modalImage" class="max-w-full max-h-full object-contain transition-transform,opacity duration-300 ease-in-out opacity-0" alt="Image preview" style="transform: scale(1) rotate(0deg);" />
+                </div>
+                 <!-- Modal footer -->
+                <div class="p-4 border-t flex flex-wrap justify-center gap-2 flex-shrink-0 items-center">
+                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="rotate" data-value="-90" title="Xoay trái">↺</button>
+                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="rotate" data-value="90" title="Xoay phải">↻</button>
+                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="flip" title="Lật ngang">⟷</button>
+                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="zoom" data-value="1.1" title="Phóng to">+</button>
+                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="zoom" data-value="0.9" title="Thu nhỏ">-</button>
+                    <button class="bg-green-500 text-white px-4 py-1.5 rounded hover:bg-green-600 text-sm inline-flex items-center" data-action="download" title="Tải xuống">
+                         <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                         Tải xuống
+                    </button>
+                     <button class="bg-purple-600 text-white px-5 py-1.5 rounded hover:bg-purple-700 text-sm inline-flex items-center" data-action="apply" title="Áp dụng thay đổi cho ảnh thumbnail">
+                         <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                         Áp dụng
+                    </button>
+                </div>
+            </div>
         </div>
-        <div class="flex-1 p-4 overflow-auto flex items-center justify-center">
-          <img id="modalImage" class="max-w-full max-h-full mx-auto hidden" />
-        </div>
-        <div class="p-4 border-t flex justify-end gap-2">
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-rotate="-90">↺</button>
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-rotate="90">↻</button>
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-flip>⟷</button>
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-zoom="1.1">+</button>
-          <button class="bg-blue-500 text-white px-4 py-2 rounded" data-zoom="0.9">-</button>
-          <button class="bg-green-500 text-white px-4 py-2 rounded" data-download>Tải xuống</button>
-        </div>
-      </div>
     </div>
+
   </div>
 
-  <!-- JavaScript -->
+  <!-- Browser JS -->
+  <script src="./assets/js/browser.js" defer></script>
+  <!-- Tailwind JS -->
+  <script src="./assets/js/tailwind.js" defer></script>
+  <!-- Flowbite JS -->
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js" defer></script>
+  <!-- Selecto JS -->
+  <script src="https://cdn.jsdelivr.net/npm/selecto@1.26.2/dist/selecto.min.js"></script>
+
+  <!-- Core Application JavaScript -->
   <script>
-    function dataURItoBlob(dataURI) {
-      const [header, data] = dataURI.split(',');
-      const mime = header.match(/:(.*?);/)[1];
-      const binary = atob(data);
-      const array = [];
-      for (let i = 0; i < binary.length; i++) array.push(binary.charCodeAt(i));
-      return new Blob([new Uint8Array(array)], { type: mime });
-    }
+    // --- Configuration and State ---
+    const CONFIG = {
+        API_URL: 'https://dummyjson.com/users', // Example API
+        ROWS_PER_PAGE: 5,
+        PLACEHOLDER_IMAGE_URL: 'https://via.placeholder.com/150/CCCCCC/FFFFFF?text=Error',
+        DEFAULT_SAVE_IMAGE_URL: 'https://robohash.org/default.png?set=set4', // Default if no image provided
+        DEBOUNCE_DELAY: 300, // ms for search input delay
+        MAX_ZOOM: 10,
+        MIN_ZOOM: 0.1,
+    };
 
     const state = {
-      data: [],
+      allData: [], // Holds all fetched data
+      filteredData: [], // Holds data filtered by search
       currentPage: 1,
-      rowsPerPage: 5,
-      modalMode: 'add',
-      imageState: { rotation: 0, scale: 1, flipped: false }
+      modalMode: 'add', // 'add' or 'edit'
+      currentItem: null, // { id, name, image } for editing
+      imageModalState: { rotation: 0, scale: 1, flipped: false },
+      uploadedFilesData: new Map(), // Map<HTMLElement, { file: File | null, base64: string | 'error' | 'loading' }>
+      selectedPreviewElements: [], // Array of selected image wrapper HTMLElements in the modal
+      isSelecting: false, // Flag for Selecto drag operation
+      dragCounter: 0, // Counter for global drag overlay
+      lastClickedItemIndex: null, // For Shift+Click selection
+      currentEditingPreviewWrapper: null, // Reference to the thumbnail being edited in the image modal
     };
 
-    const elements = {
-      tableBody: document.getElementById('tableBody'),
-      pagination: document.getElementById('pagination'),
-      startRecord: document.getElementById('startRecord'),
-      endRecord: document.getElementById('endRecord'),
-      totalRecords: document.getElementById('totalRecords'),
-      searchInput: document.getElementById('default-search'),
-      crudModal: document.getElementById('crudModal'),
-      modalTitle: document.getElementById('modalTitle'),
-      saveButton: document.getElementById('saveButton'),
-      nameInput: document.getElementById('nameInput'),
-      editId: document.getElementById('editId'),
-      dropzone: document.getElementById('dropzone'),
-      fileInput: document.getElementById('fileInput'),
-      imagePreview: document.getElementById('imagePreview'),
-      placeholderText: document.getElementById('placeholderText'),
-      loadingSpinner: document.getElementById('loadingSpinner'),
-      dropzoneOverlay: document.getElementById('dropzone-overlay'),
-      imageModal: document.getElementById('imageModal'),
-      modalImage: document.getElementById('modalImage'),
-      deleteSelected: document.getElementById('deleteSelected'),
-      deleteAll: document.getElementById('deleteAll'),
-      closeImageModal: document.getElementById('closeImageModal')
-    };
+    // --- DOM Element Cache ---
+    const elements = {}; // Will be populated by cacheElements()
 
+    // --- Selecto Instance ---
+    let selectoInstance = null;
+
+    // --- Helper Functions ---
     const debounce = (func, wait) => {
       let timeout;
       return (...args) => {
         clearTimeout(timeout);
-        timeout = setTimeout(() => func(...args), wait);
+        timeout = setTimeout(() => func.apply(this, args), wait);
       };
     };
 
-    const fetchData = async () => {
+    function dataURItoBlob(dataURI) {
       try {
-        const response = await fetch('https://dummyjson.com/users');
-        if (!response.ok) throw new Error('Không thể tải dữ liệu');
+        const [header, data] = dataURI.split(',');
+        if (!header || !data) return null;
+        const mimeMatch = header.match(/:(.*?);/);
+        if (!mimeMatch) return null;
+        const mime = mimeMatch[1];
+        const binary = atob(data); // Can throw error for invalid base64
+        const array = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+        return new Blob([array], { type: mime });
+      } catch (e) {
+        console.error("Error converting data URI to Blob:", e);
+        return null;
+      }
+    }
+
+    function getPreviewItems() {
+        // Returns a live HTMLCollection or static NodeList of current preview items
+        // Using querySelectorAll provides a static list, which is safer for iteration if modifying the list during iteration
+        return elements.imagePreview?.querySelectorAll('.selectable-item') || [];
+    }
+
+    // --- DOM Element Caching ---
+    function cacheElements() {
+        const ids = [
+            'tableBody', 'pagination', 'startRecord', 'endRecord', 'totalRecords',
+            'searchInput', 'crudModal', 'modalTitle', 'saveButton', 'nameInput',
+            'editId', 'dropzone', 'fileInput', 'imagePreview', 'placeholderText',
+            'dropzone-overlay', 'imageModal', 'modalImage', 'deleteSelectedButton',
+            'deleteAllButton', 'closeModalButton', 'modalOverlay', 'addButton',
+            'closeImageModalButton', 'imageModalOverlay'
+        ];
+        ids.forEach(id => {
+            elements[id] = document.getElementById(id);
+            if (!elements[id]) console.warn(`Element with ID '${id}' not found.`);
+        });
+        // Cache elements referenced by data-action in image modal footer
+        elements.imageModalControls = elements.imageModal?.querySelectorAll('[data-action]');
+    }
+
+
+    // --- Data Fetching ---
+    async function fetchData() {
+      setTableLoading(true);
+      try {
+        const response = await fetch(`${CONFIG.API_URL}?limit=100&skip=0`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const json = await response.json();
-        state.data = json.users.map(user => ({
+        state.allData = json.users.map(user => ({
           id: user.id,
           name: `${user.firstName} ${user.lastName}`,
-          image: user.image
+          image: user.image || CONFIG.PLACEHOLDER_IMAGE_URL
         }));
-        renderTable();
+        filterAndRenderTable();
       } catch (error) {
-        console.error('Lỗi khi tải dữ liệu:', error);
-        alert('Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.');
+        console.error('Error fetching data:', error);
+        setTableError(`Lỗi tải dữ liệu: ${error.message}. Vui lòng thử lại.`);
+      } finally {
+        setTableLoading(false);
       }
-    };
+    }
 
-    const getFilteredData = () => {
-      const query = elements.searchInput.value.toLowerCase();
-      return state.data.filter(item => item.name.toLowerCase().includes(query));
-    };
+    // --- Table Rendering ---
+    function setTableLoading(isLoading) {
+        if (isLoading && elements.tableBody) {
+            elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">Đang tải dữ liệu...</td></tr>`;
+        }
+    }
 
-    const renderTable = () => {
-      const filteredData = getFilteredData();
-      const totalRecords = filteredData.length;
-      const startIndex = (state.currentPage - 1) * state.rowsPerPage;
-      const paginatedData = filteredData.slice(startIndex, startIndex + state.rowsPerPage);
+    function setTableError(message) {
+        if (elements.tableBody) {
+            elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-red-500">${message}</td></tr>`;
+        }
+        updatePaginationUI(0, 0, 0, 1); // Reset pagination display
+    }
 
-      elements.tableBody.innerHTML = '';
-      if (filteredData.length === 0) {
-        elements.tableBody.innerHTML = '<tr><td colspan="4" class="text-center py-8">Không tìm thấy kết quả</td></tr>';
+    function filterAndRenderTable() {
+      if (!elements.searchInput || !elements.tableBody) return; // Ensure elements exist
+
+      const query = elements.searchInput.value.toLowerCase().trim();
+      state.filteredData = query
+        ? state.allData.filter(item => item.name.toLowerCase().includes(query))
+        : [...state.allData];
+
+      const totalRecords = state.filteredData.length;
+      const totalPages = Math.ceil(totalRecords / CONFIG.ROWS_PER_PAGE);
+
+      if (state.currentPage > totalPages && totalPages > 0) {
+        state.currentPage = totalPages;
+      } else if (totalPages === 0) {
+        state.currentPage = 1;
+      }
+
+      renderTablePage();
+    }
+
+    function renderTablePage() {
+      if (!elements.tableBody) return;
+
+      const totalRecords = state.filteredData.length;
+      const startIndex = (state.currentPage - 1) * CONFIG.ROWS_PER_PAGE;
+      const endIndex = Math.min(startIndex + CONFIG.ROWS_PER_PAGE, totalRecords);
+      const paginatedData = state.filteredData.slice(startIndex, endIndex);
+
+      elements.tableBody.innerHTML = ''; // Clear previous content
+
+      if (paginatedData.length === 0) {
+        const message = state.allData.length === 0
+          ? 'Không có dữ liệu.'
+          : 'Không tìm thấy kết quả phù hợp.';
+        elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">${message}</td></tr>`;
       } else {
         const fragment = document.createDocumentFragment();
-        paginatedData.forEach(item => {
-          const tr = document.createElement('tr');
-          tr.className = 'bg-white border-b hover:bg-gray-50';
-          tr.innerHTML = `
-            <th scope="row" class="px-4 sm:px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${item.id}</th>
-            <td class="px-4 sm:px-6 py-4">${item.name}</td>
-            <td class="px-4 sm:px-6 py-4">
-              <img src="${item.image}" alt="${item.name}" class="h-10 w-10 object-cover rounded-full cursor-pointer transform transition-transform duration-300 hover:scale-150" onclick="openImageModal('${item.image}')">
-            </td>
-            <td class="px-4 sm:px-6 py-4 flex gap-2">
-              <button class="bg-blue-500 text-white px-3 py-1 rounded text-sm" data-edit="${item.id},${item.name},${item.image}">Sửa</button>
-              <button class="bg-red-500 text-white px-3 py-1 rounded text-sm" data-delete="${item.id}">Xóa</button>
-            </td>`;
-          fragment.appendChild(tr);
-        });
+        paginatedData.forEach(item => fragment.appendChild(createTableRow(item)));
         elements.tableBody.appendChild(fragment);
       }
 
-      elements.startRecord.textContent = totalRecords > 0 ? startIndex + 1 : 0;
-      elements.endRecord.textContent = Math.min(startIndex + state.rowsPerPage, totalRecords);
-      elements.totalRecords.textContent = totalRecords;
-      renderPagination(totalRecords);
-    };
+      updatePaginationUI(startIndex + 1, endIndex, totalRecords, state.currentPage);
+      renderPaginationControls(totalRecords);
+    }
 
-    const renderPagination = (totalRecords) => {
-      const totalPages = Math.ceil(totalRecords / state.rowsPerPage);
-      elements.pagination.innerHTML = '';
-      const fragment = document.createDocumentFragment();
+    function createTableRow(item) {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-white border-b hover:bg-gray-50';
+        tr.dataset.itemId = item.id;
 
-      fragment.appendChild(createPaginationItem(state.currentPage === 1, 'Trước', prevPage));
-      for (let i = 1; i <= totalPages; i++) {
-        fragment.appendChild(createPaginationItem(
-          state.currentPage === i,
-          i,
-          () => goToPage(i),
-          state.currentPage === i ? 'text-blue-600 bg-blue-50' : 'bg-white hover:bg-gray-100 hover:text-gray-700'
-        ));
-      }
-      fragment.appendChild(createPaginationItem(state.currentPage === totalPages, 'Sau', nextPage));
-      elements.pagination.appendChild(fragment);
-    };
+        const safeName = escapeHtml(item.name);
+        const safeImage = escapeHtml(item.image);
 
-    const createPaginationItem = (isDisabled, text, onClick, extraClass = '') => {
-      const li = document.createElement('li');
-      const a = document.createElement('a');
-      a.textContent = text;
-      a.className = `px-3 py-2 flex items-center justify-center border border-gray-300 rounded-lg mx-1 text-sm ${extraClass}`;
-      if (isDisabled) a.className += ' cursor-not-allowed opacity-50 bg-gray-200 text-gray-400';
-      else a.addEventListener('click', onClick);
-      li.appendChild(a);
-      return li;
-    };
-
-    const prevPage = () => { if (state.currentPage > 1) { state.currentPage--; renderTable(); } };
-    const nextPage = () => {
-      const totalPages = Math.ceil(getFilteredData().length / state.rowsPerPage);
-      if (state.currentPage < totalPages) { state.currentPage++; renderTable(); }
-    };
-    const goToPage = (page) => { state.currentPage = page; renderTable(); };
-
-    const openModal = (mode, id = null, name = '', image = '') => {
-      state.modalMode = mode;
-      elements.modalTitle.textContent = mode === 'add' ? 'Thêm dữ liệu' : 'Sửa dữ liệu';
-      elements.saveButton.textContent = mode === 'add' ? 'Thêm' : 'Lưu';
-      elements.nameInput.value = name;
-      elements.editId.value = id || '';
-      elements.imagePreview.innerHTML = '';
-      if (image) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'relative aspect-square';
-        const img = document.createElement('img');
-        img.src = image;
-        img.className = 'h-full w-full rounded-lg object-cover cursor-pointer';
-        wrapper.appendChild(img);
-        elements.imagePreview.appendChild(wrapper);
-        elements.placeholderText.classList.add('hidden');
-        elements.imagePreview.classList.remove('hidden');
-        elements.deleteAll.classList.remove('hidden');
-      } else {
-        elements.placeholderText.classList.remove('hidden');
-        elements.imagePreview.classList.add('hidden');
-        elements.deleteAll.classList.add('hidden');
-      }
-      elements.crudModal.classList.remove('hidden');
-      resetSelection();
-    };
-
-    const closeModal = () => {
-      elements.crudModal.classList.add('hidden');
-      resetSelection();
-      elements.imagePreview.querySelectorAll('.aspect-square').forEach(el => {
-        el.classList.remove('border-2', 'border-blue-500');
-      });
-    };
-
-    const saveData = () => {
-      const name = elements.nameInput.value.trim();
-      const id = elements.editId.value;
-      if (!name) {
-        alert('Vui lòng nhập tên!');
-        return;
-      }
-
-      if (state.modalMode === 'add') {
-        const newId = state.data.length ? Math.max(...state.data.map(item => item.id)) + 1 : 1;
-        state.data.push({ id: newId, name, image: 'https://robohash.org/default.png' });
-        alert(`Đã thêm: ${name}`);
-      } else {
-        const index = state.data.findIndex(item => item.id == id);
-        if (index !== -1) {
-          state.data[index].name = name;
-          alert(`Đã cập nhật: ${name}`);
+        let editData = '';
+        try {
+            editData = encodeURIComponent(JSON.stringify({ id: item.id, name: item.name, image: item.image }));
+        } catch (e) {
+            console.error("Failed to stringify item data for edit button:", item, e);
         }
-      }
-      renderTable();
-      closeModal();
-    };
 
-    const handleFileUpload = (files) => {
-      const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-      if (!validFiles.length) return;
+        tr.innerHTML = `
+            <th scope="row" class="px-4 sm:px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${item.id}</th>
+            <td class="px-4 sm:px-6 py-4">${safeName}</td>
+            <td class="px-4 sm:px-6 py-4">
+              <img src="${safeImage}" alt="Ảnh của ${safeName}" class="h-10 w-10 object-cover rounded-full cursor-pointer transform transition-transform duration-300 hover:scale-150" loading="lazy" data-action="view-image" data-src="${safeImage}" onerror="this.onerror=null; this.src='${CONFIG.PLACEHOLDER_IMAGE_URL}'; this.alt='Lỗi tải ảnh';">
+            </td>
+            <td class="px-4 sm:px-6 py-4 flex flex-wrap gap-2">
+              <button type="button" class="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600" data-action="edit" data-item='${editData}'>Sửa</button>
+              <button type="button" class="bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600" data-action="delete" data-id="${item.id}">Xóa</button>
+            </td>`;
+        return tr;
+    }
 
-      elements.placeholderText.classList.add('hidden');
-      elements.imagePreview.classList.remove('hidden');
-      validFiles.forEach(file => {
-        const blobURL = URL.createObjectURL(file);
+    function escapeHtml(unsafe) {
+      // Basic escaping, consider a more robust library if complex HTML is involved
+      if (typeof unsafe !== 'string') return '';
+      return unsafe
+           .replace(/&/g, "&") // Must be first
+           .replace(/</g, "<")
+           .replace(/>/g, ">")
+           .replace(/"/g, "\"")
+           .replace(/'/g, "'");
+     }
+
+    // --- Pagination ---
+    function updatePaginationUI(start, end, total, page) {
+        if(elements.startRecord) elements.startRecord.textContent = total > 0 ? start : 0;
+        if(elements.endRecord) elements.endRecord.textContent = end;
+        if(elements.totalRecords) elements.totalRecords.textContent = total;
+    }
+
+    function renderPaginationControls(totalRecords) {
+        if (!elements.pagination) return;
+
+        const totalPages = Math.ceil(totalRecords / CONFIG.ROWS_PER_PAGE);
+        elements.pagination.innerHTML = ''; // Clear existing controls
+        if (totalPages <= 1) return; // No pagination needed
+
+        const fragment = document.createDocumentFragment();
+        // Previous Button
+        fragment.appendChild(createPaginationItem('Trước', state.currentPage, state.currentPage === 1, () => changePage(state.currentPage - 1)));
+
+        // Simplified Page Numbers (Add ellipsis logic if many pages)
+        const maxPagesToShow = 5;
+        let startPage = Math.max(1, state.currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+        if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        if (startPage > 1) {
+            fragment.appendChild(createPaginationItem('1', 1, false, () => changePage(1)));
+            if (startPage > 2) {
+                 const ellipsis = document.createElement('li');
+                 ellipsis.innerHTML = `<span class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 border border-gray-300">...</span>`;
+                 fragment.appendChild(ellipsis);
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            fragment.appendChild(createPaginationItem(i.toString(), i, state.currentPage === i, () => changePage(i)));
+        }
+
+         if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                const ellipsis = document.createElement('li');
+                ellipsis.innerHTML = `<span class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 border border-gray-300">...</span>`;
+                fragment.appendChild(ellipsis);
+            }
+            fragment.appendChild(createPaginationItem(totalPages.toString(), totalPages, false, () => changePage(totalPages)));
+        }
+
+
+        // Next Button
+        fragment.appendChild(createPaginationItem('Sau', state.currentPage, state.currentPage === totalPages, () => changePage(state.currentPage + 1)));
+
+        elements.pagination.appendChild(fragment);
+    }
+
+    function createPaginationItem(text, pageNum, isActiveOrDisabled, onClick) {
+        const li = document.createElement('li');
+        const button = document.createElement('button'); // Use button for better accessibility
+        button.type = 'button';
+        button.textContent = text;
+        button.className = `flex items-center justify-center px-3 h-8 leading-tight border border-gray-300`;
+
+        if (text === 'Trước') button.classList.add('ms-0', 'rounded-s-lg');
+        if (text === 'Sau') button.classList.add('rounded-e-lg');
+        // Numbers typically don't need negative margin if using inline-flex and -space-x-px on the parent UL
+        // if (!isNaN(Number(text))) button.classList.add('mx-[-1px]');
+
+        if (isActiveOrDisabled) {
+            if (text === pageNum.toString()) { // Current page
+                 button.className += ' z-10 text-blue-600 bg-blue-50 border-blue-300 focus:ring-2 focus:ring-blue-300 focus:outline-none';
+                 button.setAttribute('aria-current', 'page');
+            } else { // Disabled Prev/Next
+                button.className += ' cursor-not-allowed text-gray-400 bg-gray-50 pointer-events-none';
+                button.disabled = true;
+            }
+        } else {
+            button.className += ' text-gray-500 bg-white hover:bg-gray-100 hover:text-gray-700';
+            button.addEventListener('click', onClick);
+        }
+        li.appendChild(button);
+        return li;
+    }
+
+
+    function changePage(newPage) {
+        const totalPages = Math.ceil(state.filteredData.length / CONFIG.ROWS_PER_PAGE);
+        if (newPage >= 1 && newPage <= totalPages && newPage !== state.currentPage) {
+            state.currentPage = newPage;
+            renderTablePage();
+        }
+    }
+
+    // --- CRUD Modal ---
+    function openModal(mode, itemData = null) {
+        state.modalMode = mode;
+        state.currentItem = itemData;
+        resetImagePreview(); // Clear previous state first
+
+        if (mode === 'add') {
+            elements.modalTitle.textContent = 'Thêm dữ liệu mới';
+            elements.saveButton.textContent = 'Thêm mới';
+            elements.nameInput.value = '';
+            elements.editId.value = '';
+        } else if (mode === 'edit' && itemData) {
+            elements.modalTitle.textContent = 'Sửa dữ liệu';
+            elements.saveButton.textContent = 'Lưu thay đổi';
+            elements.nameInput.value = itemData.name || '';
+            elements.editId.value = itemData.id || '';
+            if (itemData.image && itemData.image !== CONFIG.PLACEHOLDER_IMAGE_URL) {
+                 // Display the existing image
+                 addImagePreviewItem(itemData.image, false); // false = not from upload
+            }
+        } else {
+            console.error("Cannot open modal in invalid state:", mode, itemData);
+            return; // Don't open if state is inconsistent
+        }
+
+        elements.crudModal.classList.remove('hidden');
+        elements.crudModal.classList.add('flex');
+        updateSelectoTargets(); // Initialize Selecto targets
+        resetSelectionUI(); // Ensure no visual selection artifacts
+        checkPreviewAreaState(); // Update layout based on initial image(s)
+        elements.nameInput.focus(); // Focus name input
+    }
+
+    function closeModal() {
+      elements.crudModal.classList.add('hidden');
+      elements.crudModal.classList.remove('flex');
+      resetImagePreview(); // Clear images and related state
+      state.currentItem = null;
+      state.lastClickedItemIndex = null; // Reset shift-click state
+    }
+
+    function saveData() {
+        const name = elements.nameInput.value.trim();
+        if (!name) {
+            alert('Vui lòng nhập họ và tên.');
+            elements.nameInput.focus();
+            return;
+        }
+
+        let imageToSave = CONFIG.DEFAULT_SAVE_IMAGE_URL;
+
+        // Find the first valid (not loading/error) image data from the preview wrappers
+        const previewItems = getPreviewItems();
+        let firstValidBase64 = null;
+        for (const wrapper of previewItems) {
+            const data = state.uploadedFilesData.get(wrapper);
+            if (data && data.base64 && data.base64 !== 'loading' && data.base64 !== 'error') {
+                firstValidBase64 = data.base64;
+                break; // Found the first one
+            } else if (!data) {
+                // This might be the original image (not in map), get its src directly
+                 const imgElement = wrapper.querySelector('img');
+                 if (imgElement && imgElement.src && imgElement.src !== CONFIG.PLACEHOLDER_IMAGE_URL) {
+                     firstValidBase64 = imgElement.src; // Use the URL
+                     break;
+                 }
+            }
+        }
+
+        if (firstValidBase64) {
+            imageToSave = firstValidBase64;
+        }
+        // If no valid image found in preview, it uses the default URL set initially
+
+        const itemData = {
+            name: name,
+            image: imageToSave // This will be base64 or URL
+        };
+
+        console.log("Saving Data:", { mode: state.modalMode, id: elements.editId.value || 'new', name: itemData.name, image: typeof itemData.image === 'string' ? itemData.image.substring(0,50)+'...' : 'Base64 Data' });
+
+        if (state.modalMode === 'add') {
+            const maxId = state.allData.reduce((max, item) => Math.max(max, item.id || 0), 0);
+            const newId = maxId + 1;
+            itemData.id = newId;
+            state.allData.unshift(itemData); // Add to the beginning
+             alert(`Đã thêm: ${name}`);
+        } else { // Edit mode
+            const idToUpdate = parseInt(elements.editId.value, 10);
+            const index = state.allData.findIndex(item => item.id === idToUpdate);
+            if (index !== -1) {
+                state.allData[index] = { ...state.allData[index], ...itemData }; // Update item
+                 alert(`Đã cập nhật: ${name}`);
+            } else {
+                console.error(`Error: Could not find item with ID ${idToUpdate} to update.`);
+                alert(`Lỗi: Không tìm thấy mục để cập nhật.`);
+                return; // Don't close modal on error
+            }
+        }
+
+        filterAndRenderTable(); // Re-filter and render the table
+        closeModal();
+    }
+
+
+    // --- Image Upload and Preview Handling (in Modal) ---
+
+    function resetImagePreview() {
+        if(elements.imagePreview) elements.imagePreview.innerHTML = '';
+        state.uploadedFilesData.clear();
+        state.selectedPreviewElements = [];
+        state.lastClickedItemIndex = null;
+        if(elements.placeholderText) elements.placeholderText.classList.remove('hidden');
+        if(elements.imagePreview) elements.imagePreview.classList.add('hidden');
+        if(elements.deleteAllButton) elements.deleteAllButton.classList.add('hidden');
+        if(elements.deleteSelectedButton) elements.deleteSelectedButton.classList.add('hidden');
+        updatePreviewLayout(); // Reset layout class
+    }
+
+    function handleFiles(files) {
+        const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+        if (!imageFiles.length) return;
+
+        // Check if original image should be removed (only in edit mode when first new image is added)
+        if (state.modalMode === 'edit' && state.uploadedFilesData.size === 0) {
+             const originalImageWrappers = elements.imagePreview?.querySelectorAll('.image-preview-wrapper[data-is-upload="false"]');
+             originalImageWrappers?.forEach(wrapper => wrapper.remove());
+        }
+
+        imageFiles.forEach(file => {
+            addImagePreviewItem(file, true); // true = is from upload
+        });
+
+        checkPreviewAreaState(); // Updates visibility, buttons, layout
+        updateSelectoTargets();
+    }
+
+    function addImagePreviewItem(source, isUpload = true) {
         const wrapper = document.createElement('div');
-        wrapper.className = 'relative aspect-square';
-        const img = document.createElement('img');
-        img.src = blobURL;
-        img.className = 'h-full w-full rounded-lg object-cover cursor-pointer border-2';
-        img.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          openImageModal(blobURL);
-        });
+        wrapper.className = 'relative aspect-square selectable-item image-preview-wrapper flex items-center justify-center rounded-lg overflow-hidden bg-gray-100'; // Base classes
+        wrapper.dataset.isUpload = isUpload.toString();
 
-        const removeBtn = document.createElement('button');
-        removeBtn.innerHTML = '×';
-        removeBtn.className = 'absolute top-2 right-2 bg-red-500 text-white rounded-md w-6 h-6 flex items-center justify-center';
-        removeBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          URL.revokeObjectURL(img.src);
-          wrapper.remove();
-          if (elements.imagePreview.children.length === 0) {
-            elements.deleteAll.classList.add('hidden');
-          }
-        });
-
-        wrapper.appendChild(img);
-        wrapper.appendChild(removeBtn);
+        const spinner = document.createElement('div');
+        spinner.className = 'image-spinner';
+        wrapper.appendChild(spinner);
         elements.imagePreview.appendChild(wrapper);
-      });
 
-      if (elements.imagePreview.children.length > 0) {
-        elements.deleteAll.classList.remove('hidden');
-      }
-    };
+        if (isUpload && source instanceof File) {
+             // Handle File upload
+             state.uploadedFilesData.set(wrapper, { file: source, base64: 'loading' });
+             const reader = new FileReader();
+             reader.onload = (e_reader) => {
+                 const base64Data = e_reader.target.result;
+                 state.uploadedFilesData.set(wrapper, { file: source, base64: base64Data });
+                 renderImageInWrapper(wrapper, base64Data, source.name);
+                 checkPreviewAreaState(); // Update layout after image renders
+             };
+             reader.onerror = (e_reader) => {
+                 console.error("File reading error:", source.name, e_reader);
+                 state.uploadedFilesData.set(wrapper, { file: source, base64: 'error' });
+                 renderErrorInWrapper(wrapper, source.name);
+                 checkPreviewAreaState();
+             };
+             reader.readAsDataURL(source);
+        } else if (!isUpload && typeof source === 'string') {
+            // Handle existing image URL (e.g., in edit mode)
+             // No file object here, base64 holds the URL initially
+             state.uploadedFilesData.set(wrapper, { file: null, base64: source });
+             renderImageInWrapper(wrapper, source, "Ảnh gốc");
+             checkPreviewAreaState();
+        } else {
+            console.error("Invalid source type for image preview:", source);
+            renderErrorInWrapper(wrapper, "Nguồn không hợp lệ");
+            checkPreviewAreaState();
+        }
+    }
 
-    const openImageModal = (src) => {
-      elements.modalImage.src = src;
-      elements.modalImage.classList.remove('hidden');
-      elements.imageModal.classList.remove('hidden');
-    };
+     function renderImageInWrapper(wrapper, src, altText) {
+        wrapper.innerHTML = ''; // Clear spinner or previous content
 
-    const closeImageModal = () => elements.imageModal.classList.add('hidden');
+        // Checkbox
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'preview-checkbox';
+        checkbox.setAttribute('aria-label', 'Chọn ảnh này');
+        checkbox.tabIndex = -1; // Prevent direct tabbing, selection handled by Selecto/click logic
+        checkbox.addEventListener('click', (e) => {
+             // Prevent click from propagating to wrapper click (image modal)
+             e.stopPropagation();
 
-    const rotateImage = (deg) => { state.imageState.rotation += deg; updateTransform(); };
-    const zoomImage = (factor) => { state.imageState.scale *= factor; updateTransform(); };
-    const flipImage = () => { state.imageState.flipped = !state.imageState.flipped; updateTransform(); };
-    const updateTransform = () => {
-      const { rotation, scale, flipped } = state.imageState;
-      elements.modalImage.style.transform = `scale(${flipped ? -scale : scale}, ${scale}) rotate(${rotation}deg)`;
-    };
+             // Manually toggle selection via Selecto when checkbox is clicked
+            //  selectoInstance?.clickTarget(wrapper); // Selecto handles Ctrl/Cmd internally here
 
-    const downloadTransformedImage = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        if (state.imageState.flipped) ctx.scale(-1, 1);
-        ctx.rotate((state.imageState.rotation * Math.PI) / 180);
-        ctx.scale(state.imageState.scale, state.imageState.scale);
-        ctx.drawImage(img, -img.width / 2, -img.height / 2);
-        ctx.restore();
-        const dataURI = canvas.toDataURL('image/png');
-        const blob = dataURItoBlob(dataURI);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'transformed_image.png';
-        a.click();
-        URL.revokeObjectURL(url);
-      };
-      img.src = elements.modalImage.src;
-    };
+             // --- ADDED PART ---
+             // Update the anchor for Shift+Click ONLY when a checkbox is explicitly clicked
+             // and NOT using Ctrl/Meta for multi-select toggle
+             if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                const items = Array.from(getPreviewItems());
+                state.lastClickedItemIndex = items.indexOf(wrapper);
+             }
+             // Note: Shift+clicking the checkbox itself will be handled by the mousedown listener
+             // on the imagePreview container, which calls preventDefault and sets range selection.
+             // This checkbox click listener will still fire AFTER the mousedown, but the state
+             // should already be set correctly by the mousedown handler.
+             // --- END OF ADDED PART ---
+              // --- NEW LOGIC ---
+             // The browser default action should have already toggled the checked state.
+             // Now, sync our internal state and the visual styles (border/overlay).
 
-    let isSelecting = false;
-    const selecto = new Selecto({
-      container: document.body,
-      selectableTargets: ['#imagePreview .aspect-square'],
-      selectByClick: true,
-      selectFromInside: false,
-      continueSelect: true,
-      hitRate: 0
+             const isChecked = e.target.checked;
+             applySelectionStyles(wrapper, isChecked); // Update border/overlay
+
+             // Update the global selection array
+             if (isChecked) {
+                 // Add to selection if not already there
+                 if (!state.selectedPreviewElements.includes(wrapper)) {
+                     state.selectedPreviewElements.push(wrapper);
+                 }
+             } else {
+                 // Remove from selection
+                 state.selectedPreviewElements = state.selectedPreviewElements.filter(el => el !== wrapper);
+             }
+
+             // Update the 'Delete Selected' button visibility
+             updateDeleteButtonsState();
+             // --- END NEW LOGIC ---
+        });
+        wrapper.appendChild(checkbox);
+
+
+        // Image
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = altText || 'Xem trước ảnh';
+        img.title = altText || 'Xem trước ảnh';
+        // Important: Make image not focusable/clickable directly if checkbox/Selecto handles it
+        img.className = 'h-full w-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none'; // Pointer events none!
+        img.loading = 'lazy';
+        img.onload = () => img.classList.remove('opacity-0');
+        img.onerror = () => {
+             img.onerror = null;
+             img.src = CONFIG.PLACEHOLDER_IMAGE_URL;
+             img.alt = `Lỗi tải ảnh: ${altText}`;
+             img.title = `Lỗi tải ảnh: ${altText}`;
+             img.classList.remove('opacity-0');
+             // Mark data as error if it was loading
+             const data = state.uploadedFilesData.get(wrapper);
+             if (data && data.base64 === 'loading') {
+                 data.base64 = 'error';
+                 renderErrorInWrapper(wrapper, data.file?.name || 'Lỗi tải ảnh');
+             }
+        };
+        wrapper.appendChild(img);
+
+        // Add click listener to wrapper (instead of image) for opening modal
+        // This works better with the checkbox/overlay structure
+        wrapper.addEventListener('click', (e) => {
+             // Only open modal on simple click, not during selection or on checkbox/button
+             if (!state.isSelecting && !e.target.closest('button, input[type="checkbox"]')) {
+                 // Check if the item is uploaded or original URL
+                  const data = state.uploadedFilesData.get(wrapper);
+                  const imageSource = data?.base64 || img.src; // Use base64 if available, else img src
+                  if (imageSource && imageSource !== 'loading' && imageSource !== 'error') {
+                     openImageModal(imageSource, wrapper); // Pass wrapper to link back for Apply
+                  }
+             }
+        });
+
+
+        // Remove Button (only for user-uploaded items)
+        if (wrapper.dataset.isUpload === 'true') {
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.innerHTML = '×';
+            removeBtn.setAttribute('aria-label', 'Xóa ảnh này');
+            removeBtn.title = 'Xóa ảnh này';
+            removeBtn.className = 'remove-preview-btn absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full w-5 h-5 flex items-center justify-center text-sm hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-red-500'; // Ensure high z-index
+            removeBtn.addEventListener('click', (e) => {
+                e.preventDefault(); // Prevent wrapper click
+                e.stopPropagation(); // Prevent Selecto click
+                removePreviewItem(wrapper);
+            });
+            wrapper.appendChild(removeBtn);
+        }
+    }
+
+    function renderErrorInWrapper(wrapper, fileName) {
+        wrapper.innerHTML = `<span class="text-red-500 text-xs p-1 text-center break-words" title="${escapeHtml(fileName)}">Lỗi đọc file</span>`;
+        wrapper.className = 'relative aspect-square selectable-item image-preview-wrapper flex items-center justify-center rounded-lg overflow-hidden bg-red-50 border border-red-300'; // Error styling
+    }
+
+    function removePreviewItem(wrapper) {
+        // Clear selection state for this item
+        applySelectionStyles(wrapper, false);
+        state.selectedPreviewElements = state.selectedPreviewElements.filter(el => el !== wrapper);
+
+        state.uploadedFilesData.delete(wrapper);
+        wrapper.remove();
+
+        checkPreviewAreaState(); // Update visibility, buttons, layout
+        updateSelectoTargets();
+        // Reset last clicked index if the removed item was the last one clicked
+        if(state.lastClickedItemIndex !== null) {
+             const items = Array.from(getPreviewItems());
+             if (state.lastClickedItemIndex >= items.length) {
+                  state.lastClickedItemIndex = null; // Or set to last valid index if needed
+             }
+        }
+    }
+
+    // Central function to update layout, visibility, and buttons
+    function checkPreviewAreaState() {
+        const items = getPreviewItems();
+        const hasImages = items.length > 0;
+
+        elements.placeholderText?.classList.toggle('hidden', hasImages);
+        elements.imagePreview?.classList.toggle('hidden', !hasImages);
+        elements.deleteAllButton?.classList.toggle('hidden', !hasImages);
+
+        updatePreviewLayout(items.length); // Update grid layout
+        updateDeleteButtonsState(); // Update 'Delete Selected' button visibility
+    }
+
+    // Function to update the grid layout class
+    function updatePreviewLayout(itemCount) {
+        const preview = elements.imagePreview;
+        if (!preview) return;
+
+        // Remove existing layout classes
+        preview.classList.remove('layout-1', 'layout-2', 'layout-3', 'layout-multi');
+
+        // Apply new layout class based on count
+        if (itemCount === 1) {
+            preview.classList.add('layout-1');
+        } else if (itemCount === 2) {
+            preview.classList.add('layout-2');
+        } else if (itemCount === 3) {
+            preview.classList.add('layout-3');
+        } else if (itemCount >= 4) {
+            preview.classList.add('layout-multi');
+        }
+        // If itemCount is 0, no class is needed (it's hidden anyway)
+    }
+
+
+    function handleDeleteSelected() {
+        state.selectedPreviewElements.forEach(wrapper => {
+            if (wrapper.parentNode) { // Ensure it hasn't been removed already
+                state.uploadedFilesData.delete(wrapper);
+                wrapper.remove();
+            }
+        });
+        resetSelectionUI(); // Clears array, updates buttons
+        checkPreviewAreaState();
+        updateSelectoTargets();
+        state.lastClickedItemIndex = null; // Reset shift-click anchor
+    }
+
+    function handleDeleteAll() {
+        if (confirm('Bạn có chắc chắn muốn xóa TẤT CẢ ảnh đã tải lên?')) {
+            elements.imagePreview.innerHTML = ''; // Clear visually
+            state.uploadedFilesData.clear(); // Clear data
+            resetSelectionUI();
+            checkPreviewAreaState();
+            updateSelectoTargets();
+            state.lastClickedItemIndex = null;
+        }
+    }
+
+    // --- Selecto Integration ---
+    function initializeSelecto() {
+        if (selectoInstance) selectoInstance.destroy();
+
+        selectoInstance = new Selecto({
+            container: elements.dropzone,
+            selectableTargets: ['.selectable-item'], // Target the wrappers
+            // selectByClick: true, // <<<--- ORIGINAL
+            selectByClick: false,  // <<<--- MODIFIED: Disable direct click selection on item
+            selectFromInside: false, // Allow selecting by clicking item bg
+            continueSelect: true,
+            toggleContinueSelect: [["ctrl"], ["meta"]], // Use Ctrl/Cmd to toggle single items
+             // Key for range selection (Shift) - checked manually in click handler
+            // keyContainer: window, // Listen globally for keys if needed
+            hitRate: 10, // Adjust tolerance if needed
+            // Prevent selection when clicking buttons/checkboxes within item
+            selectCondition: (e) => {
+                // Allow drag selection if starting on the wrapper or image background
+                // Block drag if starting on checkbox or remove button
+                const target = e.inputEvent.target;
+                return !target.closest('button, input[type="checkbox"]');
+            },
+            // Do not use Selecto's className, manage manually for checkbox/overlay
+             // className: 'selected', // We manage 'is-selected' manually
+        });
+
+        // --- Shift+Click Logic ---
+        // Use a mousedown listener on the container to potentially intercept
+        // before Selecto's internal click handling for shift-selection.
+        elements.imagePreview?.addEventListener('mousedown', (e) => {
+             const targetWrapper = e.target.closest('.selectable-item');
+             // Ensure the actual click target isn't a control element *within* the wrapper for shift-click
+             if (!targetWrapper || e.target.closest('button, input[type="checkbox"]')) {
+                 // Clicked outside an item or on a control, do nothing special for shift-click
+                 return;
+             }
+
+             const items = Array.from(getPreviewItems());
+             const currentIndex = items.indexOf(targetWrapper);
+
+             if (e.shiftKey && state.lastClickedItemIndex !== null && state.lastClickedItemIndex !== currentIndex) {
+                  // Shift key is down, and we have a previous anchor point
+                  e.preventDefault(); // Prevent default text selection/drag behaviors
+
+                  const start = Math.min(state.lastClickedItemIndex, currentIndex);
+                  const end = Math.max(state.lastClickedItemIndex, currentIndex);
+                  const targetsToSelect = items.slice(start, end + 1);
+
+                  // Programmatically set selection in Selecto
+                  selectoInstance?.setSelectedTargets(targetsToSelect);
+
+                  // Update our internal state and UI (selectEnd won't fire for programmatic selection)
+                  state.selectedPreviewElements = targetsToSelect;
+                  items.forEach(item => applySelectionStyles(item, targetsToSelect.includes(item)));
+                  updateDeleteButtonsState();
+
+             } else if (!e.ctrlKey && !e.metaKey) {
+                 // Normal click (or shift click without anchor):
+                 // Since selectByClick is false, a normal click on the item itself does nothing for selection.
+                 // We only update the anchor index IF the click was on the checkbox (handled in checkbox listener).
+                 // state.lastClickedItemIndex = currentIndex; // <<<--- MODIFIED: REMOVED/COMMENTED OUT
+             }
+             // If Ctrl/Meta is pressed, let Selecto handle the toggle IF triggered via clickTarget, don't update anchor
+        });
+
+
+        selectoInstance.on('dragStart', (e) => {
+            // Only allow drag selection if starting on the dropzone background or an item (not controls)
+            if (!e.inputEvent.target.closest('button, input[type="checkbox"]')) {
+                 state.isSelecting = true;
+             } else {
+                 e.stop(); // Prevent drag start if initiated on a button/checkbox
+             }
+        }).on("selectEnd", e => {
+             // This event fires after drag-selection OR after programmatic selection via clickTarget/setSelectedTargets
+             state.selectedPreviewElements = e.selected;
+
+             // Update visual styles for all items based on the final selection
+             const allItems = getPreviewItems();
+             allItems.forEach(item => {
+                 applySelectionStyles(item, e.selected.includes(item));
+             });
+
+             updateDeleteButtonsState();
+             state.isSelecting = false; // Reset flag
+             // Don't reset lastClickedItemIndex here, keep it for next potential shift-click
+        }).on('dragEnd', () => {
+             // Ensure isSelecting is false after any drag attempt finishes
+             state.isSelecting = false;
+        });
+    }
+
+    // Apply/Remove visual styles (border, overlay, checkbox)
+    function applySelectionStyles(element, isSelected) {
+         if (!element) return;
+         element.classList.toggle('is-selected', isSelected);
+         const checkbox = element.querySelector('.preview-checkbox');
+         if (checkbox) checkbox.checked = isSelected;
+    }
+
+
+    function updateSelectoTargets() {
+        if (selectoInstance) {
+            // Make sure Selecto targets elements within the imagePreview container
+            selectoInstance.selectableTargets = ['#imagePreview .selectable-item'];
+        }
+    }
+
+    function resetSelectionUI() {
+         getPreviewItems().forEach(el => applySelectionStyles(el, false));
+         state.selectedPreviewElements = [];
+         state.lastClickedItemIndex = null; // Reset shift-click anchor
+         if (selectoInstance) {
+            selectoInstance.setSelectedTargets([]);
+         }
+         updateDeleteButtonsState();
+    }
+
+    function updateDeleteButtonsState() {
+        if(elements.deleteSelectedButton) {
+             elements.deleteSelectedButton.classList.toggle('hidden', state.selectedPreviewElements.length === 0);
+        }
+    }
+
+    // --- Image Modal (Preview Large) ---
+    function openImageModal(src, previewWrapperElement) { // Added wrapper element
+        state.imageModalState = { rotation: 0, scale: 1, flipped: false }; // Reset state
+        state.currentEditingPreviewWrapper = previewWrapperElement; // Store reference
+        elements.modalImage.src = src;
+        elements.modalImage.style.opacity = '0';
+        elements.modalImage.style.transform = `scale(1) rotate(0deg)`;
+        elements.modalImage.removeAttribute('data-flipped');
+
+        elements.modalImage.onload = () => elements.modalImage.style.opacity = '1';
+        elements.modalImage.onerror = () => {
+            elements.modalImage.onerror = null;
+            elements.modalImage.src = CONFIG.PLACEHOLDER_IMAGE_URL;
+            elements.modalImage.alt = "Lỗi tải ảnh lớn";
+            elements.modalImage.style.opacity = '1';
+        };
+
+        elements.imageModal.classList.remove('hidden');
+        elements.imageModal.classList.add('flex');
+    }
+
+    function closeImageModal() {
+        elements.imageModal.classList.add('hidden');
+        elements.imageModal.classList.remove('flex');
+        elements.modalImage.src = "";
+        elements.modalImage.alt = "Image preview";
+        state.currentEditingPreviewWrapper = null; // Clear reference
+    }
+
+    function handleImageModalAction(action, value) {
+        switch (action) {
+            case 'rotate':
+                state.imageModalState.rotation = (state.imageModalState.rotation + parseInt(value, 10)) % 360;
+                break;
+            case 'zoom':
+                const newScale = state.imageModalState.scale * parseFloat(value);
+                state.imageModalState.scale = Math.max(CONFIG.MIN_ZOOM, Math.min(CONFIG.MAX_ZOOM, newScale));
+                break;
+            case 'flip':
+                state.imageModalState.flipped = !state.imageModalState.flipped;
+                break;
+            case 'download':
+                downloadTransformedImage(); // Existing download function
+                return;
+             case 'apply':
+                 applyTransformationsToThumbnail(); // New function
+                 return; // Don't update transform after applying
+            default:
+                console.warn("Unknown image modal action:", action);
+                return;
+        }
+        updateImageModalTransform();
+    }
+
+    function updateImageModalTransform() {
+      const { rotation, scale, flipped } = state.imageModalState;
+      const scaleX = flipped ? -scale : scale;
+      elements.modalImage.style.transform = `scaleX(${scaleX}) scaleY(${scale}) rotate(${rotation}deg)`;
+    }
+
+    // Function to generate transformed image data and update the thumbnail
+    async function applyTransformationsToThumbnail() {
+        const wrapper = state.currentEditingPreviewWrapper;
+        if (!wrapper) {
+             console.error("No preview wrapper linked for applying transformations.");
+             alert("Lỗi: Không tìm thấy ảnh thumbnail để áp dụng thay đổi.");
+             return;
+        }
+
+        try {
+             const transformedDataUrl = await getTransformedImageDataUrl(); // Use async/await version
+             if (!transformedDataUrl) {
+                  alert("Không thể tạo ảnh đã chỉnh sửa.");
+                  return;
+             }
+
+             // Update the thumbnail image source
+             const thumbImg = wrapper.querySelector('img');
+             if (thumbImg) {
+                 thumbImg.src = transformedDataUrl;
+             }
+
+             // Update the data in our state map
+             const currentData = state.uploadedFilesData.get(wrapper);
+             if (currentData) {
+                  currentData.base64 = transformedDataUrl; // Update base64 data
+                  // Optionally, you might want to clear the 'file' property
+                  // if the transformation makes the original file irrelevant
+                  // currentData.file = null;
+             } else {
+                  // If it wasn't in the map (e.g., original image), add it now with the new base64
+                  state.uploadedFilesData.set(wrapper, { file: null, base64: transformedDataUrl });
+             }
+
+             console.log("Applied transformation to thumbnail:", wrapper);
+             closeImageModal(); // Close modal on successful apply
+
+        } catch (error) {
+             console.error("Error applying transformations:", error);
+             alert(`Đã xảy ra lỗi khi áp dụng thay đổi: ${error.message}`);
+        }
+    }
+
+
+    // --- Canvas Transformation Logic (Shared by Download & Apply) ---
+
+    // Returns a Promise that resolves with the transformed image Data URL or rejects on error
+    function getTransformedImageDataUrl() {
+        return new Promise((resolve, reject) => {
+            const originalSrc = elements.modalImage.src;
+            if (!originalSrc || originalSrc === CONFIG.PLACEHOLDER_IMAGE_URL) {
+                return reject(new Error("Ảnh gốc không hợp lệ hoặc bị lỗi."));
+            }
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            // Handle CORS for external images if needed for canvas tainting
+            if (!originalSrc.startsWith('data:image') && !(new URL(originalSrc, window.location.href).origin === window.location.origin)) {
+                img.crossOrigin = "Anonymous";
+            }
+
+
+            img.onload = () => {
+                try {
+                    const { rotation, scale, flipped } = state.imageModalState;
+                    const rad = rotation * Math.PI / 180;
+                    const cos = Math.cos(rad);
+                    const sin = Math.sin(rad);
+
+                    // Calculate dimensions considering scale
+                    const scaledWidth = img.naturalWidth * scale;
+                    const scaledHeight = img.naturalHeight * scale;
+
+                    // Calculate bounding box dimensions after rotation
+                    const boundingBoxWidth = Math.abs(scaledWidth * cos) + Math.abs(scaledHeight * sin);
+                    const boundingBoxHeight = Math.abs(scaledWidth * sin) + Math.abs(scaledHeight * cos);
+
+                    // Set canvas size to fit the rotated/scaled image
+                    canvas.width = Math.max(1, Math.ceil(boundingBoxWidth)); // Ensure positive dimensions
+                    canvas.height = Math.max(1, Math.ceil(boundingBoxHeight));
+
+                    // Apply transformations
+                    ctx.save();
+                    ctx.translate(canvas.width / 2, canvas.height / 2); // Move origin to canvas center
+                    ctx.rotate(rad); // Rotate
+                    if (flipped) ctx.scale(-1, 1); // Flip horizontally
+                    // Draw the image centered around the new origin
+                    ctx.drawImage(img, -scaledWidth / 2, -scaledHeight / 2, scaledWidth, scaledHeight);
+                    ctx.restore();
+
+                    // Get Data URL
+                    const dataUrl = canvas.toDataURL('image/png'); // Or 'image/jpeg' if preferred
+                    resolve(dataUrl);
+
+                } catch (e) {
+                    console.error("Error during canvas transformation:", e);
+                    reject(new Error("Lỗi xử lý ảnh trên canvas."));
+                }
+            };
+
+            img.onerror = (err) => {
+                console.error("Error loading image for canvas:", originalSrc, err)
+                reject(new Error("Không thể tải ảnh gốc để xử lý. Có thể do lỗi CORS nếu ảnh từ nguồn khác."));
+            };
+
+            // Add cache buster for crossOrigin images to potentially avoid tainted canvas in some browsers
+            let srcToLoad = originalSrc;
+            // Only add cache buster if crossOrigin is set
+             if (img.crossOrigin === "Anonymous") {
+                srcToLoad += (srcToLoad.includes('?') ? '&' : '?') + `cachebust=${Date.now()}`;
+             }
+            img.src = srcToLoad;
+        });
+    }
+
+    // Download function now uses the shared canvas logic
+    async function downloadTransformedImage() {
+        try {
+             const dataUrl = await getTransformedImageDataUrl();
+             const blob = dataURItoBlob(dataUrl); // Convert back to blob for download link
+
+             if (blob) {
+                 const url = URL.createObjectURL(blob);
+                 const a = document.createElement('a');
+                 a.href = url;
+                 // Create a filename based on original or just timestamp
+                 const originalName = state.currentEditingPreviewWrapper?.querySelector('img')?.alt || 'transformed_image';
+                 const filename = `${originalName.replace(/\.[^/.]+$/, "")}_${Date.now()}.png`;
+                 a.download = filename;
+                 document.body.appendChild(a);
+                 a.click();
+                 document.body.removeChild(a);
+                 URL.revokeObjectURL(url);
+             } else {
+                 alert("Không thể tạo blob để tải xuống.");
+             }
+        } catch (error) {
+             console.error("Error preparing image for download:", error);
+             alert(`Lỗi khi chuẩn bị ảnh để tải xuống: ${error.message}`);
+        }
+    }
+
+
+    // --- Event Listener Setup ---
+    function setupEventListeners() {
+        // --- Search ---
+        elements.searchInput?.addEventListener('input', debounce(filterAndRenderTable, CONFIG.DEBOUNCE_DELAY));
+
+        // --- Global Actions (Add Button) ---
+        elements.addButton?.addEventListener('click', () => openModal('add'));
+
+        // --- Table Event Delegation ---
+        elements.tableBody?.addEventListener('click', (e) => {
+            const target = e.target;
+            const button = target.closest('button[data-action]');
+            const imgTrigger = target.closest('img[data-action="view-image"]');
+
+            if (button) {
+                const action = button.dataset.action;
+                if (action === 'edit') {
+                    try {
+                        const itemData = JSON.parse(decodeURIComponent(button.dataset.item || '{}'));
+                        if (itemData.id) openModal('edit', itemData);
+                        else console.error("Invalid item data for edit:", button.dataset.item);
+                    } catch (err) { console.error("Error parsing item data for edit:", err); }
+                } else if (action === 'delete') {
+                    const idToDelete = parseInt(button.dataset.id, 10);
+                    if (idToDelete && confirm('Bạn có chắc chắn muốn xóa mục này?')) {
+                        state.allData = state.allData.filter(item => item.id !== idToDelete);
+                        filterAndRenderTable(); // Re-render
+                    }
+                }
+            } else if (imgTrigger && imgTrigger.dataset.src) {
+                // Pass null for wrapper, as this modal instance isn't for applying back to thumb
+                openImageModal(imgTrigger.dataset.src, null);
+            }
+        });
+
+        // --- CRUD Modal ---
+        elements.saveButton?.addEventListener('click', saveData);
+        elements.closeModalButton?.addEventListener('click', closeModal);
+        elements.modalOverlay?.addEventListener('click', closeModal);
+
+        // --- Image Preview Modal ---
+        elements.closeImageModalButton?.addEventListener('click', closeImageModal);
+        elements.imageModalOverlay?.addEventListener('click', closeImageModal);
+        if (elements.imageModalControls) {
+             elements.imageModalControls.forEach(button => {
+                 button.addEventListener('click', () => {
+                     const action = button.dataset.action;
+                     const value = button.dataset.value;
+                     handleImageModalAction(action, value);
+                 });
+             });
+        }
+
+
+        // --- Dropzone (File Upload & Interactions) ---
+        elements.dropzone?.addEventListener('click', (e) => {
+             // Trigger file input only if clicking placeholder/background and not during selection
+             // Also ensure not clicking on an existing item wrapper or its controls
+             if (!state.isSelecting && !e.target.closest('.selectable-item, input, button')) {
+                  elements.fileInput?.click();
+             }
+        });
+        elements.fileInput?.addEventListener('change', (e) => {
+            if (e.target.files?.length) handleFiles(e.target.files);
+            e.target.value = ''; // Reset input
+        });
+        elements.dropzone?.addEventListener('dragover', (e) => {
+            e.preventDefault();
+             // Add visual cue only if not currently dragging for selection within the dropzone
+             if (!state.isSelecting) {
+                elements.dropzone.classList.add('border-blue-500', 'bg-blue-50');
+            }
+        });
+        elements.dropzone?.addEventListener('dragleave', (e) => {
+             // Check carefully to prevent flicker when moving over children
+             if (!elements.dropzone.contains(e.relatedTarget)) {
+                 elements.dropzone.classList.remove('border-blue-500', 'bg-blue-50');
+            }
+        });
+        elements.dropzone?.addEventListener('drop', (e) => {
+            e.preventDefault();
+            elements.dropzone.classList.remove('border-blue-500', 'bg-blue-50');
+            // Only handle dropped files if not during an internal drag-select operation
+            if (!state.isSelecting && e.dataTransfer?.files?.length) {
+                handleFiles(e.dataTransfer.files);
+            }
+             state.isSelecting = false; // Reset selection flag after drop regardless
+        });
+        elements.dropzone?.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            const filesToUpload = [];
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
+                    const file = items[i].getAsFile();
+                    if (file) filesToUpload.push(file);
+                }
+            }
+            if (filesToUpload.length > 0) handleFiles(filesToUpload);
+            else console.log("No image files found in clipboard data.");
+        });
+
+        // --- Image Preview Selection/Deletion (within Modal) ---
+        elements.deleteSelectedButton?.addEventListener('click', handleDeleteSelected);
+        elements.deleteAllButton?.addEventListener('click', handleDeleteAll);
+
+
+        // --- Global Drag/Drop Overlay ---
+        // Using document listeners - ensure they don't interfere if nested dropzones exist
+        document.addEventListener('dragenter', (e) => {
+             // Check if files are being dragged
+             if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+                e.preventDefault();
+                state.dragCounter++;
+                 // Show overlay only on first enter
+                 if (state.dragCounter === 1 && elements.dropzoneOverlay?.classList.contains('hidden')) {
+                    elements.dropzoneOverlay.classList.remove('hidden');
+                    elements.dropzoneOverlay.classList.add('flex');
+                }
+            }
+        });
+        document.addEventListener('dragleave', (e) => {
+             // Only decrement/hide if leaving the window or to a non-child element
+             if (e.relatedTarget === null || !document.documentElement.contains(e.relatedTarget)) {
+                 if (state.dragCounter > 0) state.dragCounter--;
+                 if (state.dragCounter === 0 && elements.dropzoneOverlay) {
+                    elements.dropzoneOverlay.classList.add('hidden');
+                    elements.dropzoneOverlay.classList.remove('flex');
+                }
+            }
+        });
+        document.addEventListener('dragover', (e) => {
+             // Necessary to allow drop
+             if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+                e.preventDefault();
+             }
+        });
+        document.addEventListener('drop', (e) => {
+             // Only handle if files were dragged
+             if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+                e.preventDefault();
+                state.dragCounter = 0;
+                if (elements.dropzoneOverlay) {
+                    elements.dropzoneOverlay.classList.add('hidden');
+                    elements.dropzoneOverlay.classList.remove('flex');
+                }
+                // Note: The actual file handling happens in the *specific* dropzone's drop listener,
+                // this just hides the global overlay.
+            }
+        });
+    }
+
+    // --- Initialization ---
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("DOM Loaded. Initializing application...");
+        cacheElements();    // Find elements first
+        setupEventListeners(); // Then attach listeners
+        initializeSelecto(); // Then initialize libraries using elements
+        fetchData();        // Then load initial data
+        console.log("Application initialized.");
     });
 
-    let selectedElements = [];
-    selecto.on('dragStart', (e) => {
-      isSelecting = true;
-      const target = e.inputEvent.target;
-      if (target.tagName === 'BUTTON' || target.tagName === 'IMG') {
-        e.stop();
-      }
-    });
-
-    selecto.on('select', (e) => {
-      e.removed.forEach(el => el.classList.remove('border-2', 'border-blue-500'));
-      e.added.forEach(el => el.classList.add('border-2', 'border-blue-500'));
-      selectedElements = e.selected;
-      elements.deleteSelected.classList.toggle('hidden', selectedElements.length === 0);
-    });
-
-    selecto.on('dragEnd', (e) => {
-      setTimeout(() => { 
-        isSelecting = false; 
-        elements.fileInput.disabled = false;
-      }, 100);
-    });
-
-    elements.deleteSelected.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      selectedElements.forEach(el => {
-        const img = el.querySelector('img');
-        URL.revokeObjectURL(img.src);
-        el.remove();
-      });
-      selectedElements = [];
-      elements.deleteSelected.classList.add('hidden');
-      if (elements.imagePreview.children.length === 0) {
-        elements.deleteAll.classList.add('hidden');
-      }
-    });
-
-    elements.deleteAll.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      Array.from(elements.imagePreview.children).forEach(wrapper => {
-        const img = wrapper.querySelector('img');
-        URL.revokeObjectURL(img.src);
-      });
-      elements.imagePreview.innerHTML = '';
-      elements.placeholderText.classList.remove('hidden');
-      elements.imagePreview.classList.add('hidden');
-      resetSelection();
-      elements.deleteAll.classList.add('hidden');
-    });
-
-    const resetSelection = () => {
-      selectedElements.forEach(el => el.classList.remove('border-2', 'border-blue-500'));
-      selectedElements = [];
-      elements.deleteSelected.classList.add('hidden');
-    };
-
-    document.addEventListener('click', (e) => {
-      const target = e.target;
-      if (target.dataset.action === 'add') openModal('add');
-      if (target.dataset.close || target.closest('[data-close]')) closeModal();
-      if (target.id === 'closeImageModal') closeImageModal();
-      if (target.dataset.edit) {
-        const [id, name, image] = target.dataset.edit.split(',');
-        openModal('edit', id, name, image);
-      }
-      if (target.dataset.rotate) rotateImage(parseInt(target.dataset.rotate));
-      if (target.dataset.zoom) zoomImage(parseFloat(target.dataset.zoom));
-      if (target.dataset.flip) flipImage();
-      if (target.dataset.delete) {
-        state.data = state.data.filter(item => item.id != target.dataset.delete);
-        renderTable();
-      }
-      if (target.dataset.download) downloadTransformedImage();
-    });
-
-    elements.searchInput.addEventListener('input', debounce(() => {
-      state.currentPage = 1;
-      renderTable();
-    }, 300));
-
-    elements.dropzone.addEventListener('click', () => elements.fileInput.click());
-    elements.fileInput.addEventListener('change', (e) => handleFileUpload(e.target.files));
-    elements.dropzone.addEventListener('dragover', (e) => e.preventDefault());
-    elements.dropzone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (!isSelecting) handleFileUpload(e.dataTransfer.files);
-    });
-    document.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      elements.dropzoneOverlay.classList.remove('hidden');
-    });
-    document.addEventListener('dragleave', () => elements.dropzoneOverlay.classList.add('hidden'));
-    document.addEventListener('drop', (e) => {
-      e.preventDefault();
-      elements.dropzoneOverlay.classList.add('hidden');
-      if (!isSelecting) handleFileUpload(e.dataTransfer.files);
-    });
-    elements.saveButton.addEventListener('click', saveData);
-
-    window.onload = fetchData;
   </script>
 </body>
 </html>
