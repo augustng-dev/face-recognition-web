@@ -8,10 +8,10 @@
   <link rel="icon" type="image/png" href="./assets/img/favicon.png" />
   <!-- Flowbite CSS -->
   <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.css" rel="stylesheet" />
-  <!-- Tailwind CSS (CDN) -->
-  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
-  <!-- Selecto CSS (Needed for the default selection box style) -->
-  <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/selecto@1.26.2/dist/selecto.min.css" /> -->
+  <!-- Selecto JS needs to be loaded *before* our script, but CSS can be here -->
+  <script src="https://cdn.jsdelivr.net/npm/selecto@1.26.2/dist/selecto.min.js"></script>
+  <!-- *** ADDED: Filerobot Image Editor JS *** -->
+  <script src="https://scaleflex.cloudimg.io/v7/plugins/filerobot-image-editor/latest/filerobot-image-editor.min.js"></script>
   <!-- Custom Styles -->
   <style>
     /* Spinner for loading images in preview */
@@ -28,6 +28,10 @@
         transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* Smooth transition */
         position: relative; /* Needed for absolute positioning of children */
         overflow: hidden; /* Keep checkbox/overlay contained */
+        user-select: none; /* Prevent text selection during drag */
+        -webkit-user-select: none; /* Safari */
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE */
     }
 
     /* Style for selected items in image preview */
@@ -58,6 +62,8 @@
      /* Style for checkboxes */
      .preview-checkbox {
          appearance: none; /* Remove default browser styling */
+         -webkit-appearance: none;
+         -moz-appearance: none;
          width: 1.25rem; /* 20px */
          height: 1.25rem; /* 20px */
          border: 2px solid #9ca3af; /* gray-400 */
@@ -98,11 +104,32 @@
      #imagePreview.layout-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
      #imagePreview.layout-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
      #imagePreview.layout-3, #imagePreview.layout-multi { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-     /* Responsive adjustments if needed */
+     /* Responsive adjustments */
      @media (min-width: 640px) { /* sm breakpoint */
         #imagePreview.layout-multi { grid-template-columns: repeat(4, minmax(0, 1fr)); }
      }
 
+     /* Ensure image inside selectable item doesn't interfere with drag selection */
+     .selectable-item img {
+        pointer-events: none;
+     }
+
+      /* Style for the moved action container */
+     #dynamicActionContainer {
+         position: static; /* Or remove position: absolute if it was inline */
+         transform: none; /* Remove transform if it was applied */
+         width: 100%;
+         display: flex; /* Use flex to center its content */
+         justify-content: center;
+         margin-top: 0.75rem; /* mt-3, adjust as needed */
+         padding: 0 0.5rem; /* Add some horizontal padding if needed */
+     }
+
+      /* Style Filerobot container */
+      #filerobotEditorContainer {
+        /* Ensure it takes up space. Height is set inline below, but can be here */
+         min-height: 500px; /* Example minimum height */
+      }
 
   </style>
 </head>
@@ -179,21 +206,54 @@
                     <div class="flex flex-col md:flex-row gap-4 h-auto md:min-h-[350px] md:max-h-[calc(80vh-180px)]">
                         <!-- Dropzone Section -->
                         <div class="w-full md:w-1/2 flex flex-col min-h-[300px]">
+                            <!-- Dropzone Area -->
                             <div class="border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-4 cursor-pointer w-full relative flex-grow min-h-0" id="dropzone" tabindex="0">
+                                <!-- Placeholder Text -->
                                 <div class="text-gray-500 text-center pointer-events-none" id="placeholderText">
                                     <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                                     Kéo & thả tệp vào đây <br> hoặc <span class="text-blue-600 font-semibold">bấm để tải lên</span> <br> hoặc <span class="text-blue-600 font-semibold">paste (Ctrl+V)</span>
                                 </div>
                                 <input type="file" id="fileInput" class="hidden" accept="image/*" multiple />
+                                <!-- Image Preview Grid -->
                                 <div id="imagePreview" class="grid gap-2 hidden overflow-auto w-full h-full p-2">
                                     <!-- Dynamic grid layout applied via JS -->
                                     <!-- Image previews will be appended here -->
                                 </div>
-                                <button id="deleteSelectedButton" class="bg-red-600 text-white px-4 py-1.5 rounded-md text-sm hidden absolute bottom-2 left-1/2 transform -translate-x-1/2 z-20 shadow hover:bg-red-700">Xóa đã chọn</button>
-                            </div>
-                             <!-- Delete All button takes full width below dropzone -->
-                            <button id="deleteAllButton" class="mt-2 bg-red-600 text-white py-2 rounded-md text-sm hidden w-full hover:bg-red-700">Xóa tất cả ảnh</button>
-                        </div>
+                            </div> <!-- End Dropzone Area -->
+
+                             <!-- Container for Dynamic Actions - Positioned BELOW dropzone -->
+                             <div id="dynamicActionContainer" class="hidden w-full flex justify-center mt-3">
+                                <!-- Standalone Delete All Button -->
+                                <button id="simpleDeleteAllButton" type="button" class="bg-red-600 text-white py-1.5 px-4 rounded-md text-sm hover:bg-red-700 shadow hidden">
+                                    Xóa tất cả ảnh
+                                </button>
+                                <!-- Dropdown Wrapper -->
+                                <div id="dropdownWrapper" class="hidden">
+                                    <button id="imageActionsButton" data-dropdown-toggle="imageActionsDropdown" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-4 py-1.5 text-center inline-flex items-center shadow" type="button">
+                                        Hành động
+                                        <svg class="w-2.5 h-2.5 ms-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
+                                        </svg>
+                                    </button>
+                                    <!-- Dropdown menu -->
+                                    <div id="imageActionsDropdown" class="z-30 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44 dark:bg-gray-700">
+                                        <ul class="py-2 text-sm text-gray-700 dark:text-gray-200" aria-labelledby="imageActionsButton">
+                                            <li>
+                                                <a href="#" id="deleteSelectedAction" data-action="delete-selected" class="block px-4 py-2 text-red-600 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
+                                                    Xóa đã chọn (<span id="selectedCount">0</span>)
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="#" id="deleteAllActionInDropdown" data-action="delete-all-dropdown" class="block px-4 py-2 text-red-600 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
+                                                    Xóa tất cả ảnh
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div> <!-- End Dropdown Wrapper -->
+                            </div> <!-- End Dynamic Action Container -->
+                        </div> <!-- End Dropzone Section -->
+
                         <!-- Information Section -->
                         <fieldset class="border border-gray-300 rounded-lg p-4 w-full md:w-1/2">
                             <legend class="text-base font-medium mb-2 px-1">Thông tin</legend>
@@ -219,11 +279,13 @@
       </div>
     </div>
 
-    <!-- Image Preview Modal -->
+    <!-- Image Preview Modal (Now hosting Filerobot Editor) -->
     <div id="imageModal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-[60] justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
         <div class="fixed inset-0 bg-gray-900 bg-opacity-80" id="imageModalOverlay"></div>
-        <div class="relative p-4 w-full max-w-5xl max-h-full">
-             <!-- Modal content -->
+         <!-- *** MODIFIED: Adjusted width (max-w-6xl) *** -->
+        <div class="relative p-4 w-full max-w-6xl max-h-full">
+            <!-- Modal content -->
+             <!-- *** MODIFIED: Adjusted max height (max-h-[95vh]) *** -->
             <div class="relative bg-white rounded-lg shadow max-h-[95vh] flex flex-col">
                  <!-- Modal header -->
                 <div class="flex items-center justify-between p-4 border-b rounded-t flex-shrink-0">
@@ -232,26 +294,14 @@
                         <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/></svg>
                     </button>
                 </div>
-                 <!-- Modal body -->
-                <div class="p-4 flex-grow overflow-auto flex items-center justify-center bg-gray-100 min-h-[300px]">
-                    <img id="modalImage" class="max-w-full max-h-full object-contain transition-transform,opacity duration-300 ease-in-out opacity-0" alt="Image preview" style="transform: scale(1) rotate(0deg);" />
+                 <!-- *** MODIFIED: Modal body - Replaced with Filerobot container *** -->
+                <div class="flex-grow overflow-auto bg-gray-100">
+                     <!-- Container for Filerobot Image Editor -->
+                     <div id="filerobotEditorContainer" class="w-full h-[75vh]">
+                         <!-- Filerobot Editor will render here -->
+                     </div>
                 </div>
-                 <!-- Modal footer -->
-                <div class="p-4 border-t flex flex-wrap justify-center gap-2 flex-shrink-0 items-center">
-                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="rotate" data-value="-90" title="Xoay trái">↺</button>
-                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="rotate" data-value="90" title="Xoay phải">↻</button>
-                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="flip" title="Lật ngang">⟷</button>
-                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="zoom" data-value="1.1" title="Phóng to">+</button>
-                    <button class="bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 text-lg" data-action="zoom" data-value="0.9" title="Thu nhỏ">-</button>
-                    <button class="bg-green-500 text-white px-4 py-1.5 rounded hover:bg-green-600 text-sm inline-flex items-center" data-action="download" title="Tải xuống">
-                         <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-                         Tải xuống
-                    </button>
-                     <button class="bg-purple-600 text-white px-5 py-1.5 rounded hover:bg-purple-700 text-sm inline-flex items-center" data-action="apply" title="Áp dụng thay đổi cho ảnh thumbnail">
-                         <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                         Áp dụng
-                    </button>
-                </div>
+                 <!-- *** REMOVED: Modal footer with old buttons *** -->
             </div>
         </div>
     </div>
@@ -262,1168 +312,1186 @@
   <script src="./assets/js/browser.js" defer></script>
   <!-- Tailwind JS -->
   <script src="./assets/js/tailwind.js" defer></script>
-  <!-- Flowbite JS -->
+  <!-- Flowbite JS (Needs to be loaded AFTER HTML elements exist) -->
   <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js" defer></script>
-  <!-- Selecto JS -->
-  <script src="https://cdn.jsdelivr.net/npm/selecto@1.26.2/dist/selecto.min.js"></script>
+  <!-- Selecto JS loaded in <head> -->
+  <!-- Filerobot JS loaded in <head> -->
 
   <!-- Core Application JavaScript -->
-  <script>
-    // --- Configuration and State ---
-    const CONFIG = {
-        API_URL: 'https://dummyjson.com/users', // Example API
-        ROWS_PER_PAGE: 5,
-        PLACEHOLDER_IMAGE_URL: 'https://via.placeholder.com/150/CCCCCC/FFFFFF?text=Error',
-        DEFAULT_SAVE_IMAGE_URL: 'https://robohash.org/default.png?set=set4', // Default if no image provided
-        DEBOUNCE_DELAY: 300, // ms for search input delay
-        MAX_ZOOM: 10,
-        MIN_ZOOM: 0.1,
-    };
-
-    const state = {
-      allData: [], // Holds all fetched data
-      filteredData: [], // Holds data filtered by search
-      currentPage: 1,
-      modalMode: 'add', // 'add' or 'edit'
-      currentItem: null, // { id, name, image } for editing
-      imageModalState: { rotation: 0, scale: 1, flipped: false },
-      uploadedFilesData: new Map(), // Map<HTMLElement, { file: File | null, base64: string | 'error' | 'loading' }>
-      selectedPreviewElements: [], // Array of selected image wrapper HTMLElements in the modal
-      isSelecting: false, // Flag for Selecto drag operation
-      dragCounter: 0, // Counter for global drag overlay
-      lastClickedItemIndex: null, // For Shift+Click selection
-      currentEditingPreviewWrapper: null, // Reference to the thumbnail being edited in the image modal
-    };
-
-    // --- DOM Element Cache ---
-    const elements = {}; // Will be populated by cacheElements()
-
-    // --- Selecto Instance ---
-    let selectoInstance = null;
-
-    // --- Helper Functions ---
-    const debounce = (func, wait) => {
-      let timeout;
-      return (...args) => {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-      };
-    };
-
-    function dataURItoBlob(dataURI) {
-      try {
-        const [header, data] = dataURI.split(',');
-        if (!header || !data) return null;
-        const mimeMatch = header.match(/:(.*?);/);
-        if (!mimeMatch) return null;
-        const mime = mimeMatch[1];
-        const binary = atob(data); // Can throw error for invalid base64
-        const array = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
-        return new Blob([array], { type: mime });
-      } catch (e) {
-        console.error("Error converting data URI to Blob:", e);
-        return null;
-      }
-    }
-
-    function getPreviewItems() {
-        // Returns a live HTMLCollection or static NodeList of current preview items
-        // Using querySelectorAll provides a static list, which is safer for iteration if modifying the list during iteration
-        return elements.imagePreview?.querySelectorAll('.selectable-item') || [];
-    }
-
-    // --- DOM Element Caching ---
-    function cacheElements() {
-        const ids = [
-            'tableBody', 'pagination', 'startRecord', 'endRecord', 'totalRecords',
-            'searchInput', 'crudModal', 'modalTitle', 'saveButton', 'nameInput',
-            'editId', 'dropzone', 'fileInput', 'imagePreview', 'placeholderText',
-            'dropzone-overlay', 'imageModal', 'modalImage', 'deleteSelectedButton',
-            'deleteAllButton', 'closeModalButton', 'modalOverlay', 'addButton',
-            'closeImageModalButton', 'imageModalOverlay'
-        ];
-        ids.forEach(id => {
-            elements[id] = document.getElementById(id);
-            if (!elements[id]) console.warn(`Element with ID '${id}' not found.`);
-        });
-        // Cache elements referenced by data-action in image modal footer
-        elements.imageModalControls = elements.imageModal?.querySelectorAll('[data-action]');
-    }
-
-
-    // --- Data Fetching ---
-    async function fetchData() {
-      setTableLoading(true);
-      try {
-        const response = await fetch(`${CONFIG.API_URL}?limit=100&skip=0`);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const json = await response.json();
-        state.allData = json.users.map(user => ({
-          id: user.id,
-          name: `${user.firstName} ${user.lastName}`,
-          image: user.image || CONFIG.PLACEHOLDER_IMAGE_URL
-        }));
-        filterAndRenderTable();
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setTableError(`Lỗi tải dữ liệu: ${error.message}. Vui lòng thử lại.`);
-      } finally {
-        setTableLoading(false);
-      }
-    }
-
-    // --- Table Rendering ---
-    function setTableLoading(isLoading) {
-        if (isLoading && elements.tableBody) {
-            elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">Đang tải dữ liệu...</td></tr>`;
-        }
-    }
-
-    function setTableError(message) {
-        if (elements.tableBody) {
-            elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-red-500">${message}</td></tr>`;
-        }
-        updatePaginationUI(0, 0, 0, 1); // Reset pagination display
-    }
-
-    function filterAndRenderTable() {
-      if (!elements.searchInput || !elements.tableBody) return; // Ensure elements exist
-
-      const query = elements.searchInput.value.toLowerCase().trim();
-      state.filteredData = query
-        ? state.allData.filter(item => item.name.toLowerCase().includes(query))
-        : [...state.allData];
-
-      const totalRecords = state.filteredData.length;
-      const totalPages = Math.ceil(totalRecords / CONFIG.ROWS_PER_PAGE);
-
-      if (state.currentPage > totalPages && totalPages > 0) {
-        state.currentPage = totalPages;
-      } else if (totalPages === 0) {
-        state.currentPage = 1;
-      }
-
-      renderTablePage();
-    }
-
-    function renderTablePage() {
-      if (!elements.tableBody) return;
-
-      const totalRecords = state.filteredData.length;
-      const startIndex = (state.currentPage - 1) * CONFIG.ROWS_PER_PAGE;
-      const endIndex = Math.min(startIndex + CONFIG.ROWS_PER_PAGE, totalRecords);
-      const paginatedData = state.filteredData.slice(startIndex, endIndex);
-
-      elements.tableBody.innerHTML = ''; // Clear previous content
-
-      if (paginatedData.length === 0) {
-        const message = state.allData.length === 0
-          ? 'Không có dữ liệu.'
-          : 'Không tìm thấy kết quả phù hợp.';
-        elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">${message}</td></tr>`;
-      } else {
-        const fragment = document.createDocumentFragment();
-        paginatedData.forEach(item => fragment.appendChild(createTableRow(item)));
-        elements.tableBody.appendChild(fragment);
-      }
-
-      updatePaginationUI(startIndex + 1, endIndex, totalRecords, state.currentPage);
-      renderPaginationControls(totalRecords);
-    }
-
-    function createTableRow(item) {
-        const tr = document.createElement('tr');
-        tr.className = 'bg-white border-b hover:bg-gray-50';
-        tr.dataset.itemId = item.id;
-
-        const safeName = escapeHtml(item.name);
-        const safeImage = escapeHtml(item.image);
-
-        let editData = '';
-        try {
-            editData = encodeURIComponent(JSON.stringify({ id: item.id, name: item.name, image: item.image }));
-        } catch (e) {
-            console.error("Failed to stringify item data for edit button:", item, e);
-        }
-
-        tr.innerHTML = `
-            <th scope="row" class="px-4 sm:px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${item.id}</th>
-            <td class="px-4 sm:px-6 py-4">${safeName}</td>
-            <td class="px-4 sm:px-6 py-4">
-              <img src="${safeImage}" alt="Ảnh của ${safeName}" class="h-10 w-10 object-cover rounded-full cursor-pointer transform transition-transform duration-300 hover:scale-150" loading="lazy" data-action="view-image" data-src="${safeImage}" onerror="this.onerror=null; this.src='${CONFIG.PLACEHOLDER_IMAGE_URL}'; this.alt='Lỗi tải ảnh';">
-            </td>
-            <td class="px-4 sm:px-6 py-4 flex flex-wrap gap-2">
-              <button type="button" class="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600" data-action="edit" data-item='${editData}'>Sửa</button>
-              <button type="button" class="bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600" data-action="delete" data-id="${item.id}">Xóa</button>
-            </td>`;
-        return tr;
-    }
-
-    function escapeHtml(unsafe) {
-      // Basic escaping, consider a more robust library if complex HTML is involved
-      if (typeof unsafe !== 'string') return '';
-      return unsafe
-           .replace(/&/g, "&") // Must be first
-           .replace(/</g, "<")
-           .replace(/>/g, ">")
-           .replace(/"/g, "\"")
-           .replace(/'/g, "'");
-     }
-
-    // --- Pagination ---
-    function updatePaginationUI(start, end, total, page) {
-        if(elements.startRecord) elements.startRecord.textContent = total > 0 ? start : 0;
-        if(elements.endRecord) elements.endRecord.textContent = end;
-        if(elements.totalRecords) elements.totalRecords.textContent = total;
-    }
-
-    function renderPaginationControls(totalRecords) {
-        if (!elements.pagination) return;
-
-        const totalPages = Math.ceil(totalRecords / CONFIG.ROWS_PER_PAGE);
-        elements.pagination.innerHTML = ''; // Clear existing controls
-        if (totalPages <= 1) return; // No pagination needed
-
-        const fragment = document.createDocumentFragment();
-        // Previous Button
-        fragment.appendChild(createPaginationItem('Trước', state.currentPage, state.currentPage === 1, () => changePage(state.currentPage - 1)));
-
-        // Simplified Page Numbers (Add ellipsis logic if many pages)
-        const maxPagesToShow = 5;
-        let startPage = Math.max(1, state.currentPage - Math.floor(maxPagesToShow / 2));
-        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-        if (endPage - startPage + 1 < maxPagesToShow) {
-            startPage = Math.max(1, endPage - maxPagesToShow + 1);
-        }
-
-        if (startPage > 1) {
-            fragment.appendChild(createPaginationItem('1', 1, false, () => changePage(1)));
-            if (startPage > 2) {
-                 const ellipsis = document.createElement('li');
-                 ellipsis.innerHTML = `<span class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 border border-gray-300">...</span>`;
-                 fragment.appendChild(ellipsis);
-            }
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            fragment.appendChild(createPaginationItem(i.toString(), i, state.currentPage === i, () => changePage(i)));
-        }
-
-         if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                const ellipsis = document.createElement('li');
-                ellipsis.innerHTML = `<span class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 border border-gray-300">...</span>`;
-                fragment.appendChild(ellipsis);
-            }
-            fragment.appendChild(createPaginationItem(totalPages.toString(), totalPages, false, () => changePage(totalPages)));
-        }
-
-
-        // Next Button
-        fragment.appendChild(createPaginationItem('Sau', state.currentPage, state.currentPage === totalPages, () => changePage(state.currentPage + 1)));
-
-        elements.pagination.appendChild(fragment);
-    }
-
-    function createPaginationItem(text, pageNum, isActiveOrDisabled, onClick) {
-        const li = document.createElement('li');
-        const button = document.createElement('button'); // Use button for better accessibility
-        button.type = 'button';
-        button.textContent = text;
-        button.className = `flex items-center justify-center px-3 h-8 leading-tight border border-gray-300`;
-
-        if (text === 'Trước') button.classList.add('ms-0', 'rounded-s-lg');
-        if (text === 'Sau') button.classList.add('rounded-e-lg');
-        // Numbers typically don't need negative margin if using inline-flex and -space-x-px on the parent UL
-        // if (!isNaN(Number(text))) button.classList.add('mx-[-1px]');
-
-        if (isActiveOrDisabled) {
-            if (text === pageNum.toString()) { // Current page
-                 button.className += ' z-10 text-blue-600 bg-blue-50 border-blue-300 focus:ring-2 focus:ring-blue-300 focus:outline-none';
-                 button.setAttribute('aria-current', 'page');
-            } else { // Disabled Prev/Next
-                button.className += ' cursor-not-allowed text-gray-400 bg-gray-50 pointer-events-none';
-                button.disabled = true;
-            }
-        } else {
-            button.className += ' text-gray-500 bg-white hover:bg-gray-100 hover:text-gray-700';
-            button.addEventListener('click', onClick);
-        }
-        li.appendChild(button);
-        return li;
-    }
-
-
-    function changePage(newPage) {
-        const totalPages = Math.ceil(state.filteredData.length / CONFIG.ROWS_PER_PAGE);
-        if (newPage >= 1 && newPage <= totalPages && newPage !== state.currentPage) {
-            state.currentPage = newPage;
-            renderTablePage();
-        }
-    }
-
-    // --- CRUD Modal ---
-    function openModal(mode, itemData = null) {
-        state.modalMode = mode;
-        state.currentItem = itemData;
-        resetImagePreview(); // Clear previous state first
-
-        if (mode === 'add') {
-            elements.modalTitle.textContent = 'Thêm dữ liệu mới';
-            elements.saveButton.textContent = 'Thêm mới';
-            elements.nameInput.value = '';
-            elements.editId.value = '';
-        } else if (mode === 'edit' && itemData) {
-            elements.modalTitle.textContent = 'Sửa dữ liệu';
-            elements.saveButton.textContent = 'Lưu thay đổi';
-            elements.nameInput.value = itemData.name || '';
-            elements.editId.value = itemData.id || '';
-            if (itemData.image && itemData.image !== CONFIG.PLACEHOLDER_IMAGE_URL) {
-                 // Display the existing image
-                 addImagePreviewItem(itemData.image, false); // false = not from upload
-            }
-        } else {
-            console.error("Cannot open modal in invalid state:", mode, itemData);
-            return; // Don't open if state is inconsistent
-        }
-
-        elements.crudModal.classList.remove('hidden');
-        elements.crudModal.classList.add('flex');
-        updateSelectoTargets(); // Initialize Selecto targets
-        resetSelectionUI(); // Ensure no visual selection artifacts
-        checkPreviewAreaState(); // Update layout based on initial image(s)
-        elements.nameInput.focus(); // Focus name input
-    }
-
-    function closeModal() {
-      elements.crudModal.classList.add('hidden');
-      elements.crudModal.classList.remove('flex');
-      resetImagePreview(); // Clear images and related state
-      state.currentItem = null;
-      state.lastClickedItemIndex = null; // Reset shift-click state
-    }
-
-    function saveData() {
-        const name = elements.nameInput.value.trim();
-        if (!name) {
-            alert('Vui lòng nhập họ và tên.');
-            elements.nameInput.focus();
-            return;
-        }
-
-        let imageToSave = CONFIG.DEFAULT_SAVE_IMAGE_URL;
-
-        // Find the first valid (not loading/error) image data from the preview wrappers
-        const previewItems = getPreviewItems();
-        let firstValidBase64 = null;
-        for (const wrapper of previewItems) {
-            const data = state.uploadedFilesData.get(wrapper);
-            if (data && data.base64 && data.base64 !== 'loading' && data.base64 !== 'error') {
-                firstValidBase64 = data.base64;
-                break; // Found the first one
-            } else if (!data) {
-                // This might be the original image (not in map), get its src directly
-                 const imgElement = wrapper.querySelector('img');
-                 if (imgElement && imgElement.src && imgElement.src !== CONFIG.PLACEHOLDER_IMAGE_URL) {
-                     firstValidBase64 = imgElement.src; // Use the URL
-                     break;
-                 }
-            }
-        }
-
-        if (firstValidBase64) {
-            imageToSave = firstValidBase64;
-        }
-        // If no valid image found in preview, it uses the default URL set initially
-
-        const itemData = {
-            name: name,
-            image: imageToSave // This will be base64 or URL
+   <script>
+        // --- Configuration and State ---
+        const CONFIG = {
+            API_URL: 'https://dummyjson.com/users', // Example API
+            ROWS_PER_PAGE: 5,
+            PLACEHOLDER_IMAGE_URL: 'https://via.placeholder.com/150/CCCCCC/FFFFFF?text=Error',
+            DEFAULT_SAVE_IMAGE_URL: 'https://robohash.org/default.png?set=set4', // Default if no image provided on save
+            DEBOUNCE_DELAY: 300, // ms for search input delay
+            // MAX_ZOOM: 10, // REMOVED: Handled by Filerobot
+            // MIN_ZOOM: 0.1, // REMOVED: Handled by Filerobot
+            DRAG_END_RESET_DELAY: 100, // ms for dragEnd state reset timeout
         };
 
-        console.log("Saving Data:", { mode: state.modalMode, id: elements.editId.value || 'new', name: itemData.name, image: typeof itemData.image === 'string' ? itemData.image.substring(0,50)+'...' : 'Base64 Data' });
+        const state = {
+          allData: [], // Holds all fetched data
+          filteredData: [], // Holds data filtered by search
+          currentPage: 1,
+          modalMode: 'add', // 'add' or 'edit'
+          currentItem: null, // { id, name, image } for editing
+          // imageModalState: { rotation: 0, scale: 1, flipped: false }, // REMOVED: Handled by Filerobot
+          uploadedFilesData: new Map(), // Map<HTMLElement (wrapper), { file: File | null, base64: string | 'error' | 'loading' }>
+          selectedPreviewElements: [], // Array of selected image wrapper HTMLElements in the modal
+          isSelecting: false, // Flag for Selecto drag operation
+          dragCounter: 0, // Counter for global drag overlay visibility
+          lastClickedItemIndex: null, // For Shift+Click selection anchor
+          currentEditingPreviewWrapper: null, // Reference to the thumbnail being edited in the image modal
+          dragEndTimeoutId: null, // ID for the dragEnd setTimeout
+        };
 
-        if (state.modalMode === 'add') {
-            const maxId = state.allData.reduce((max, item) => Math.max(max, item.id || 0), 0);
-            const newId = maxId + 1;
-            itemData.id = newId;
-            state.allData.unshift(itemData); // Add to the beginning
-             alert(`Đã thêm: ${name}`);
-        } else { // Edit mode
-            const idToUpdate = parseInt(elements.editId.value, 10);
-            const index = state.allData.findIndex(item => item.id === idToUpdate);
-            if (index !== -1) {
-                state.allData[index] = { ...state.allData[index], ...itemData }; // Update item
-                 alert(`Đã cập nhật: ${name}`);
+        // --- DOM Element Cache ---
+        const elements = {}; // Populated by cacheElements()
+
+        // --- Selecto Instance ---
+        let selectoInstance = null;
+
+        // --- *** ADDED: Filerobot Instance *** ---
+        let filerobotEditorInstance = null;
+
+        // --- Helper Functions ---
+        const debounce = (func, wait) => {
+          let timeout;
+          return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+          };
+        };
+
+        function dataURItoBlob(dataURI) {
+          try {
+            const [header, data] = dataURI.split(',');
+            if (!header || !data) {
+                 console.warn("Invalid data URI format:", dataURI.substring(0, 50) + '...');
+                 return null;
+            }
+            const mimeMatch = header.match(/:(.*?);/);
+            if (!mimeMatch || mimeMatch.length < 2) {
+                console.warn("Could not extract mime type from data URI header:", header);
+                return null;
+            }
+            const mime = mimeMatch[1];
+            const binary = atob(data);
+            const array = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+            return new Blob([array], { type: mime });
+          } catch (e) {
+            console.error("Error converting data URI to Blob:", e, dataURI.substring(0, 50) + '...');
+            return null;
+          }
+        }
+
+        function getPreviewItems() {
+            return elements.imagePreview?.querySelectorAll('.selectable-item.image-preview-wrapper') || [];
+        }
+
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') return '';
+            return unsafe
+                .replace(/&/g, "&") // Use & for ampersand
+                .replace(/</g, "<")
+                .replace(/>/g, ">")
+                .replace(/"/g, "\"")
+                .replace(/'/g, "'"); // Use ' for single quote
+        }
+
+
+        // --- DOM Element Caching ---
+        function cacheElements() {
+            const ids = [
+                'tableBody', 'pagination', 'startRecord', 'endRecord', 'totalRecords',
+                'searchInput', 'crudModal', 'modalTitle', 'saveButton', 'nameInput',
+                'editId', 'dropzone', 'fileInput', 'imagePreview', 'placeholderText',
+                'dropzone-overlay',
+                'imageModal',
+                // 'modalImage', // REMOVED: Image element replaced
+                'filerobotEditorContainer', // *** ADDED: Container for Filerobot ***
+                'closeModalButton', 'modalOverlay', 'addButton',
+                'closeImageModalButton', 'imageModalOverlay',
+                // Dynamic action elements in modal
+                'dynamicActionContainer', 'simpleDeleteAllButton', 'dropdownWrapper',
+                'imageActionsButton', 'imageActionsDropdown', 'deleteSelectedAction',
+                'deleteAllActionInDropdown', 'selectedCount'
+            ];
+            ids.forEach(id => {
+                elements[id] = document.getElementById(id);
+                if (!elements[id]) console.warn(`Element with ID '${id}' not found.`);
+            });
+            // Remove caching for old image modal controls
+            // elements.imageModalControls = elements.imageModal?.querySelectorAll('[data-action]');
+        }
+
+        // --- Data Fetching ---
+        async function fetchData() {
+          setTableLoading(true);
+          try {
+            const response = await fetch(`${CONFIG.API_URL}?limit=0&skip=0`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const json = await response.json();
+            state.allData = json.users.map(user => ({
+              id: user.id,
+              name: `${user.firstName} ${user.lastName}`,
+              image: user.image || CONFIG.PLACEHOLDER_IMAGE_URL
+            }));
+            filterAndRenderTable();
+          } catch (error) {
+            console.error('Error fetching data:', error);
+            setTableError(`Lỗi tải dữ liệu: ${error.message}. Vui lòng thử lại.`);
+          } finally {
+            setTableLoading(false);
+          }
+        }
+
+        // --- Table Rendering ---
+        function setTableLoading(isLoading) {
+            if (isLoading && elements.tableBody) {
+                elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">Đang tải dữ liệu...</td></tr>`;
+            }
+        }
+
+        function setTableError(message) {
+            if (elements.tableBody) {
+                elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-red-500">${escapeHtml(message)}</td></tr>`;
+            }
+            updatePaginationUI(0, 0, 0, 1); // Reset pagination display
+        }
+
+        function filterAndRenderTable() {
+          if (!elements.searchInput || !elements.tableBody) return;
+
+          const query = elements.searchInput.value.toLowerCase().trim();
+          state.filteredData = query
+            ? state.allData.filter(item => item.name.toLowerCase().includes(query))
+            : [...state.allData];
+
+          const totalRecords = state.filteredData.length;
+          const totalPages = Math.ceil(totalRecords / CONFIG.ROWS_PER_PAGE);
+
+          if (state.currentPage > totalPages && totalPages > 0) {
+            state.currentPage = totalPages;
+          } else if (totalPages === 0) {
+            state.currentPage = 1;
+          }
+
+          renderTablePage();
+        }
+
+        function renderTablePage() {
+          if (!elements.tableBody) return;
+
+          const totalRecords = state.filteredData.length;
+          const startIndex = (state.currentPage - 1) * CONFIG.ROWS_PER_PAGE;
+          const endIndex = Math.min(startIndex + CONFIG.ROWS_PER_PAGE, totalRecords);
+          const paginatedData = state.filteredData.slice(startIndex, endIndex);
+
+          elements.tableBody.innerHTML = '';
+
+          if (paginatedData.length === 0) {
+            const message = state.allData.length === 0
+              ? 'Không có dữ liệu.'
+              : 'Không tìm thấy kết quả phù hợp.';
+            elements.tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">${message}</td></tr>`;
+          } else {
+            const fragment = document.createDocumentFragment();
+            paginatedData.forEach(item => fragment.appendChild(createTableRow(item)));
+            elements.tableBody.appendChild(fragment);
+          }
+
+          updatePaginationUI(startIndex + 1, endIndex, totalRecords, state.currentPage);
+          renderPaginationControls(totalRecords);
+        }
+
+        function createTableRow(item) {
+            const tr = document.createElement('tr');
+            tr.className = 'bg-white border-b hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-600';
+            tr.dataset.itemId = item.id;
+
+            const safeName = escapeHtml(item.name);
+            const safeImage = escapeHtml(item.image);
+            let editData = '';
+            try {
+                editData = encodeURIComponent(JSON.stringify({ id: item.id, name: item.name, image: item.image }));
+            } catch (e) {
+                console.error("Failed to stringify item data for edit button:", item, e);
+            }
+
+            tr.innerHTML = `
+                <th scope="row" class="px-4 sm:px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">${item.id}</th>
+                <td class="px-4 sm:px-6 py-4">${safeName}</td>
+                <td class="px-4 sm:px-6 py-4">
+                  <img src="${safeImage}" alt="Ảnh của ${safeName}" class="h-10 w-10 object-cover rounded-full cursor-pointer transform transition-transform duration-300 hover:scale-150" loading="lazy" data-action="view-image" data-src="${safeImage}" onerror="this.onerror=null; this.src='${CONFIG.PLACEHOLDER_IMAGE_URL}'; this.alt='Lỗi tải ảnh';">
+                </td>
+                <td class="px-4 sm:px-6 py-4 flex flex-wrap gap-2">
+                  <button type="button" class="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300" data-action="edit" data-item='${editData}'>Sửa</button>
+                  <button type="button" class="bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300" data-action="delete" data-id="${item.id}">Xóa</button>
+                </td>`;
+            return tr;
+        }
+
+
+        // --- Pagination ---
+        function updatePaginationUI(start, end, total, page) {
+            if(elements.startRecord) elements.startRecord.textContent = total > 0 ? start : 0;
+            if(elements.endRecord) elements.endRecord.textContent = end;
+            if(elements.totalRecords) elements.totalRecords.textContent = total;
+        }
+
+        function renderPaginationControls(totalRecords) {
+            if (!elements.pagination) return;
+
+            const totalPages = Math.ceil(totalRecords / CONFIG.ROWS_PER_PAGE);
+            elements.pagination.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            const fragment = document.createDocumentFragment();
+            const currentPage = state.currentPage;
+
+            fragment.appendChild(createPaginationItem('Trước', currentPage, currentPage === 1, () => changePage(currentPage - 1)));
+
+            const maxPagesToShow = 5;
+            const sidePages = Math.floor((maxPagesToShow - 3) / 2);
+
+            if (totalPages <= maxPagesToShow) {
+                for (let i = 1; i <= totalPages; i++) {
+                    fragment.appendChild(createPaginationItem(i.toString(), i, currentPage === i, () => changePage(i)));
+                }
             } else {
-                console.error(`Error: Could not find item with ID ${idToUpdate} to update.`);
-                alert(`Lỗi: Không tìm thấy mục để cập nhật.`);
-                return; // Don't close modal on error
+                fragment.appendChild(createPaginationItem('1', 1, currentPage === 1, () => changePage(1)));
+                if (currentPage > sidePages + 2) {
+                    fragment.appendChild(createEllipsisItem());
+                }
+                const startPage = Math.max(2, currentPage - sidePages);
+                const endPage = Math.min(totalPages - 1, currentPage + sidePages);
+                for (let i = startPage; i <= endPage; i++) {
+                    fragment.appendChild(createPaginationItem(i.toString(), i, currentPage === i, () => changePage(i)));
+                }
+                if (currentPage < totalPages - sidePages - 1) {
+                    fragment.appendChild(createEllipsisItem());
+                }
+                fragment.appendChild(createPaginationItem(totalPages.toString(), totalPages, currentPage === totalPages, () => changePage(totalPages)));
+            }
+
+            fragment.appendChild(createPaginationItem('Sau', currentPage, currentPage === totalPages, () => changePage(currentPage + 1)));
+            elements.pagination.appendChild(fragment);
+        }
+
+        function createPaginationItem(text, pageNum, isActiveOrDisabled, onClick) {
+            const li = document.createElement('li');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = text;
+            button.className = `flex items-center justify-center px-3 h-8 leading-tight border border-gray-300 dark:border-gray-700`;
+
+            if (text === 'Trước') button.classList.add('ms-0', 'rounded-s-lg');
+            if (text === 'Sau') button.classList.add('rounded-e-lg');
+
+            if (isActiveOrDisabled) {
+                if (text === pageNum.toString()) { // Current active page
+                     button.className += ' z-10 text-blue-600 bg-blue-50 border-blue-300 hover:bg-blue-100 hover:text-blue-700 dark:bg-gray-700 dark:text-white dark:border-gray-600';
+                     button.setAttribute('aria-current', 'page');
+                } else { // Disabled Prev/Next
+                    button.className += ' cursor-not-allowed text-gray-400 bg-gray-50 dark:text-gray-500 dark:bg-gray-800 pointer-events-none';
+                    button.disabled = true;
+                }
+            } else { // Regular clickable page number or Prev/Next
+                button.className += ' text-gray-500 bg-white hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:bg-gray-800 dark:hover:bg-gray-700 dark:hover:text-white';
+                button.addEventListener('click', onClick);
+            }
+            li.appendChild(button);
+            return li;
+        }
+
+        function createEllipsisItem() {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 border border-gray-300 dark:text-gray-400 dark:border-gray-700 dark:bg-gray-800">...</span>`;
+            return li;
+        }
+
+        function changePage(newPage) {
+            const totalPages = Math.ceil(state.filteredData.length / CONFIG.ROWS_PER_PAGE);
+            if (newPage >= 1 && newPage <= totalPages && newPage !== state.currentPage) {
+                state.currentPage = newPage;
+                renderTablePage();
             }
         }
 
-        filterAndRenderTable(); // Re-filter and render the table
-        closeModal();
-    }
+        // --- CRUD Modal ---
+        function openModal(mode, itemData = null) {
+            state.modalMode = mode;
+            state.currentItem = itemData;
+            resetImagePreview();
 
+            if (mode === 'add') {
+                elements.modalTitle.textContent = 'Thêm dữ liệu mới';
+                elements.saveButton.textContent = 'Thêm mới';
+                elements.nameInput.value = '';
+                elements.editId.value = '';
+            } else if (mode === 'edit' && itemData) {
+                elements.modalTitle.textContent = 'Sửa dữ liệu';
+                elements.saveButton.textContent = 'Lưu thay đổi';
+                elements.nameInput.value = itemData.name || '';
+                elements.editId.value = itemData.id || '';
+                if (itemData.image && itemData.image !== CONFIG.PLACEHOLDER_IMAGE_URL) {
+                     addImagePreviewItem(itemData.image, false);
+                }
+            } else {
+                console.error("Cannot open modal in invalid state:", mode, itemData);
+                return;
+            }
 
-    // --- Image Upload and Preview Handling (in Modal) ---
-
-    function resetImagePreview() {
-        if(elements.imagePreview) elements.imagePreview.innerHTML = '';
-        state.uploadedFilesData.clear();
-        state.selectedPreviewElements = [];
-        state.lastClickedItemIndex = null;
-        if(elements.placeholderText) elements.placeholderText.classList.remove('hidden');
-        if(elements.imagePreview) elements.imagePreview.classList.add('hidden');
-        if(elements.deleteAllButton) elements.deleteAllButton.classList.add('hidden');
-        if(elements.deleteSelectedButton) elements.deleteSelectedButton.classList.add('hidden');
-        updatePreviewLayout(); // Reset layout class
-    }
-
-    function handleFiles(files) {
-        const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-        if (!imageFiles.length) return;
-
-        // Check if original image should be removed (only in edit mode when first new image is added)
-        if (state.modalMode === 'edit' && state.uploadedFilesData.size === 0) {
-             const originalImageWrappers = elements.imagePreview?.querySelectorAll('.image-preview-wrapper[data-is-upload="false"]');
-             originalImageWrappers?.forEach(wrapper => wrapper.remove());
+            elements.crudModal.classList.remove('hidden');
+            elements.crudModal.classList.add('flex');
+            requestAnimationFrame(() => {
+                elements.nameInput?.focus();
+                updateSelectoTargets();
+                resetSelectionUI();
+                checkPreviewAreaState();
+            });
         }
 
-        imageFiles.forEach(file => {
-            addImagePreviewItem(file, true); // true = is from upload
-        });
-
-        checkPreviewAreaState(); // Updates visibility, buttons, layout
-        updateSelectoTargets();
-    }
-
-    function addImagePreviewItem(source, isUpload = true) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'relative aspect-square selectable-item image-preview-wrapper flex items-center justify-center rounded-lg overflow-hidden bg-gray-100'; // Base classes
-        wrapper.dataset.isUpload = isUpload.toString();
-
-        const spinner = document.createElement('div');
-        spinner.className = 'image-spinner';
-        wrapper.appendChild(spinner);
-        elements.imagePreview.appendChild(wrapper);
-
-        if (isUpload && source instanceof File) {
-             // Handle File upload
-             state.uploadedFilesData.set(wrapper, { file: source, base64: 'loading' });
-             const reader = new FileReader();
-             reader.onload = (e_reader) => {
-                 const base64Data = e_reader.target.result;
-                 state.uploadedFilesData.set(wrapper, { file: source, base64: base64Data });
-                 renderImageInWrapper(wrapper, base64Data, source.name);
-                 checkPreviewAreaState(); // Update layout after image renders
-             };
-             reader.onerror = (e_reader) => {
-                 console.error("File reading error:", source.name, e_reader);
-                 state.uploadedFilesData.set(wrapper, { file: source, base64: 'error' });
-                 renderErrorInWrapper(wrapper, source.name);
-                 checkPreviewAreaState();
-             };
-             reader.readAsDataURL(source);
-        } else if (!isUpload && typeof source === 'string') {
-            // Handle existing image URL (e.g., in edit mode)
-             // No file object here, base64 holds the URL initially
-             state.uploadedFilesData.set(wrapper, { file: null, base64: source });
-             renderImageInWrapper(wrapper, source, "Ảnh gốc");
-             checkPreviewAreaState();
-        } else {
-            console.error("Invalid source type for image preview:", source);
-            renderErrorInWrapper(wrapper, "Nguồn không hợp lệ");
-            checkPreviewAreaState();
+        function closeModal() {
+          elements.crudModal.classList.add('hidden');
+          elements.crudModal.classList.remove('flex');
+          resetImagePreview();
+          state.currentItem = null;
+          state.lastClickedItemIndex = null;
         }
-    }
 
-     function renderImageInWrapper(wrapper, src, altText) {
-        wrapper.innerHTML = ''; // Clear spinner or previous content
+        function saveData() {
+            const name = elements.nameInput.value.trim();
+            if (!name) {
+                alert('Vui lòng nhập họ và tên.');
+                elements.nameInput.focus();
+                return;
+            }
 
-        // Checkbox
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'preview-checkbox';
-        checkbox.setAttribute('aria-label', 'Chọn ảnh này');
-        checkbox.tabIndex = -1; // Prevent direct tabbing, selection handled by Selecto/click logic
-        checkbox.addEventListener('click', (e) => {
-             // Prevent click from propagating to wrapper click (image modal)
-             e.stopPropagation();
+            let imageToSave = CONFIG.DEFAULT_SAVE_IMAGE_URL;
+            const previewItems = getPreviewItems();
+            let firstValidBase64OrUrl = null;
+            for (const wrapper of previewItems) {
+                const data = state.uploadedFilesData.get(wrapper);
+                if (data && data.base64 && data.base64 !== 'loading' && data.base64 !== 'error') {
+                    firstValidBase64OrUrl = data.base64;
+                    break;
+                }
+            }
 
-             // Manually toggle selection via Selecto when checkbox is clicked
-            //  selectoInstance?.clickTarget(wrapper); // Selecto handles Ctrl/Cmd internally here
+            if (firstValidBase64OrUrl) {
+                imageToSave = firstValidBase64OrUrl;
+            }
 
-             // --- ADDED PART ---
-             // Update the anchor for Shift+Click ONLY when a checkbox is explicitly clicked
-             // and NOT using Ctrl/Meta for multi-select toggle
-             if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-                const items = Array.from(getPreviewItems());
-                state.lastClickedItemIndex = items.indexOf(wrapper);
-             }
-             // Note: Shift+clicking the checkbox itself will be handled by the mousedown listener
-             // on the imagePreview container, which calls preventDefault and sets range selection.
-             // This checkbox click listener will still fire AFTER the mousedown, but the state
-             // should already be set correctly by the mousedown handler.
-             // --- END OF ADDED PART ---
-              // --- NEW LOGIC ---
-             // The browser default action should have already toggled the checked state.
-             // Now, sync our internal state and the visual styles (border/overlay).
+            const itemData = {
+                name: name,
+                image: imageToSave
+            };
 
-             const isChecked = e.target.checked;
-             applySelectionStyles(wrapper, isChecked); // Update border/overlay
+            console.log("Saving Data:", {
+                 mode: state.modalMode,
+                 id: elements.editId.value || 'new',
+                 name: itemData.name,
+                 image: typeof itemData.image === 'string' && itemData.image.startsWith('data:image') ? 'Base64 Data (' + Math.round(itemData.image.length / 1024) + ' KB)' : itemData.image
+            });
 
-             // Update the global selection array
-             if (isChecked) {
-                 // Add to selection if not already there
-                 if (!state.selectedPreviewElements.includes(wrapper)) {
-                     state.selectedPreviewElements.push(wrapper);
+            if (state.modalMode === 'add') {
+                const maxId = state.allData.reduce((max, item) => Math.max(max, item.id || 0), 0);
+                const newId = maxId + 1;
+                itemData.id = newId;
+                state.allData.unshift(itemData);
+                 alert(`Đã thêm: ${escapeHtml(name)}`);
+            } else {
+                const idToUpdate = parseInt(elements.editId.value, 10);
+                if (isNaN(idToUpdate)) {
+                    console.error("Invalid ID for update:", elements.editId.value);
+                    alert("Lỗi: ID không hợp lệ để cập nhật.");
+                    return;
+                }
+                const index = state.allData.findIndex(item => item.id === idToUpdate);
+                if (index !== -1) {
+                    state.allData[index] = { ...state.allData[index], ...itemData };
+                     alert(`Đã cập nhật: ${escapeHtml(name)}`);
+                } else {
+                    console.error(`Error: Could not find item with ID ${idToUpdate} to update.`);
+                    alert(`Lỗi: Không tìm thấy mục để cập nhật.`);
+                    return;
+                }
+            }
+
+            filterAndRenderTable();
+            closeModal();
+        }
+
+        // --- Image Upload and Preview Handling (in CRUD Modal) ---
+
+        function resetImagePreview() {
+            if(elements.imagePreview) elements.imagePreview.innerHTML = '';
+            state.uploadedFilesData.clear();
+            state.selectedPreviewElements = [];
+            state.lastClickedItemIndex = null;
+            if(elements.placeholderText) elements.placeholderText.classList.remove('hidden');
+            if(elements.imagePreview) elements.imagePreview.classList.add('hidden');
+            if(elements.dynamicActionContainer) elements.dynamicActionContainer.classList.add('hidden');
+            updatePreviewLayout(0);
+            updateImageActionStates();
+            updateSelectoTargets();
+            if (state.dragEndTimeoutId) {
+                clearTimeout(state.dragEndTimeoutId);
+                state.dragEndTimeoutId = null;
+            }
+        }
+
+        function handleFiles(files) {
+            const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            if (!imageFiles.length) {
+                alert("Vui lòng chọn tệp hình ảnh.");
+                return;
+            }
+
+            if (state.modalMode === 'edit') {
+                 const existingWrappers = getPreviewItems();
+                 const originalImageWrappers = existingWrappers.filter(w => w.dataset.isUpload === 'false');
+                 const uploadedImageWrappers = existingWrappers.filter(w => w.dataset.isUpload === 'true');
+                 if (originalImageWrappers.length > 0 && uploadedImageWrappers.length === 0 && imageFiles.length > 0) {
+                     originalImageWrappers.forEach(wrapper => removePreviewItem(wrapper, false));
+                     console.log("Original image removed upon adding new files in edit mode.");
                  }
-             } else {
-                 // Remove from selection
-                 state.selectedPreviewElements = state.selectedPreviewElements.filter(el => el !== wrapper);
-             }
+            }
 
-             // Update the 'Delete Selected' button visibility
-             updateDeleteButtonsState();
-             // --- END NEW LOGIC ---
-        });
-        wrapper.appendChild(checkbox);
+            imageFiles.forEach(file => {
+                addImagePreviewItem(file, true);
+            });
 
+            checkPreviewAreaState();
+            updateSelectoTargets();
+        }
 
-        // Image
-        const img = document.createElement('img');
-        img.src = src;
-        img.alt = altText || 'Xem trước ảnh';
-        img.title = altText || 'Xem trước ảnh';
-        // Important: Make image not focusable/clickable directly if checkbox/Selecto handles it
-        img.className = 'h-full w-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none'; // Pointer events none!
-        img.loading = 'lazy';
-        img.onload = () => img.classList.remove('opacity-0');
-        img.onerror = () => {
-             img.onerror = null;
-             img.src = CONFIG.PLACEHOLDER_IMAGE_URL;
-             img.alt = `Lỗi tải ảnh: ${altText}`;
-             img.title = `Lỗi tải ảnh: ${altText}`;
-             img.classList.remove('opacity-0');
-             // Mark data as error if it was loading
-             const data = state.uploadedFilesData.get(wrapper);
-             if (data && data.base64 === 'loading') {
-                 data.base64 = 'error';
-                 renderErrorInWrapper(wrapper, data.file?.name || 'Lỗi tải ảnh');
-             }
-        };
-        wrapper.appendChild(img);
+        function addImagePreviewItem(source, isUpload = true) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative aspect-square selectable-item image-preview-wrapper flex items-center justify-center rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700';
+            wrapper.dataset.isUpload = isUpload.toString();
 
-        // Add click listener to wrapper (instead of image) for opening modal
-        // This works better with the checkbox/overlay structure
-        wrapper.addEventListener('click', (e) => {
-             // Only open modal on simple click, not during selection or on checkbox/button
-             if (!state.isSelecting && !e.target.closest('button, input[type="checkbox"]')) {
-                 // Check if the item is uploaded or original URL
-                  const data = state.uploadedFilesData.get(wrapper);
-                  const imageSource = data?.base64 || img.src; // Use base64 if available, else img src
-                  if (imageSource && imageSource !== 'loading' && imageSource !== 'error') {
-                     openImageModal(imageSource, wrapper); // Pass wrapper to link back for Apply
-                  }
-             }
-        });
+            const spinner = document.createElement('div');
+            spinner.className = 'image-spinner';
+            wrapper.appendChild(spinner);
+            elements.imagePreview?.appendChild(wrapper);
 
+            if (isUpload && source instanceof File) {
+                 state.uploadedFilesData.set(wrapper, { file: source, base64: 'loading' });
+                 const reader = new FileReader();
+                 reader.onload = (e_reader) => {
+                     const base64Data = e_reader.target.result;
+                     if (state.uploadedFilesData.has(wrapper)) {
+                        state.uploadedFilesData.set(wrapper, { file: source, base64: base64Data });
+                        renderImageInWrapper(wrapper, base64Data, source.name);
+                        checkPreviewAreaState();
+                     }
+                 };
+                 reader.onerror = (e_reader) => {
+                     console.error("File reading error:", source.name, e_reader);
+                      if (state.uploadedFilesData.has(wrapper)) {
+                        state.uploadedFilesData.set(wrapper, { file: source, base64: 'error' });
+                        renderErrorInWrapper(wrapper, source.name);
+                        checkPreviewAreaState();
+                     }
+                 };
+                 reader.readAsDataURL(source);
+            } else if (!isUpload && typeof source === 'string') {
+                 state.uploadedFilesData.set(wrapper, { file: null, base64: source });
+                 renderImageInWrapper(wrapper, source, "Ảnh gốc");
+                 checkPreviewAreaState();
+            } else {
+                console.error("Invalid source type for image preview:", source);
+                renderErrorInWrapper(wrapper, "Nguồn không hợp lệ");
+                checkPreviewAreaState();
+            }
+        }
 
-        // Remove Button (only for user-uploaded items)
-        if (wrapper.dataset.isUpload === 'true') {
+        function renderImageInWrapper(wrapper, src, altText) {
+            wrapper.innerHTML = ''; // Clear spinner or previous content
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'preview-checkbox';
+            checkbox.setAttribute('aria-label', `Chọn ảnh ${escapeHtml(altText)}`);
+            checkbox.tabIndex = -1;
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const items = Array.from(getPreviewItems());
+                const currentIndex = items.indexOf(wrapper);
+                const isChecked = e.target.checked;
+
+                if (e.shiftKey && state.lastClickedItemIndex !== null && state.lastClickedItemIndex !== currentIndex) {
+                    e.preventDefault();
+                    const start = Math.min(state.lastClickedItemIndex, currentIndex);
+                    const end = Math.max(state.lastClickedItemIndex, currentIndex);
+                    const targetsToSelect = items.slice(start, end + 1);
+                    state.selectedPreviewElements = targetsToSelect;
+                    items.forEach(item => {
+                        applySelectionStyles(item, targetsToSelect.includes(item));
+                    });
+                    if (selectoInstance) {
+                         selectoInstance.setSelectedTargets(targetsToSelect);
+                    }
+                    updateImageActionStates();
+                } else {
+                    if (!e.ctrlKey && !e.metaKey) {
+                        state.lastClickedItemIndex = currentIndex;
+                    }
+                    if (isChecked) {
+                        if (!state.selectedPreviewElements.includes(wrapper)) {
+                            state.selectedPreviewElements.push(wrapper);
+                        }
+                    } else {
+                        state.selectedPreviewElements = state.selectedPreviewElements.filter(el => el !== wrapper);
+                    }
+                    applySelectionStyles(wrapper, isChecked);
+                    if (selectoInstance) {
+                         selectoInstance.setSelectedTargets(state.selectedPreviewElements);
+                    }
+                    updateImageActionStates();
+                }
+            });
+            wrapper.appendChild(checkbox);
+
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = escapeHtml(altText);
+            img.title = escapeHtml(altText);
+            img.className = 'h-full w-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none';
+            img.loading = 'lazy';
+            img.onload = () => img.classList.remove('opacity-0');
+            img.onerror = () => {
+                 img.onerror = null;
+                 img.src = CONFIG.PLACEHOLDER_IMAGE_URL;
+                 const errorText = `Lỗi tải ảnh: ${altText}`;
+                 img.alt = errorText;
+                 img.title = errorText;
+                 img.classList.remove('opacity-0');
+                 const data = state.uploadedFilesData.get(wrapper);
+                 if (data && data.base64 === 'loading') {
+                     data.base64 = 'error';
+                 }
+            };
+            wrapper.appendChild(img);
+
+            wrapper.addEventListener('click', (e) => {
+                 if (!state.isSelecting && !e.target.closest('input[type="checkbox"], .remove-preview-btn, #dynamicActionContainer')) {
+                      const data = state.uploadedFilesData.get(wrapper);
+                      const imageSource = data?.base64;
+                      if (imageSource && imageSource !== 'loading' && imageSource !== 'error') {
+                         // *** MODIFIED: Call the new openImageModal ***
+                         openImageModal(imageSource, wrapper);
+                      } else {
+                          console.warn("Cannot open image modal - image data not ready or in error state.");
+                      }
+                 }
+            });
+
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.innerHTML = '×';
-            removeBtn.setAttribute('aria-label', 'Xóa ảnh này');
+            removeBtn.setAttribute('aria-label', `Xóa ảnh ${escapeHtml(altText)}`);
             removeBtn.title = 'Xóa ảnh này';
-            removeBtn.className = 'remove-preview-btn absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full w-5 h-5 flex items-center justify-center text-sm hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-red-500'; // Ensure high z-index
+            removeBtn.className = 'remove-preview-btn absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full w-5 h-5 flex items-center justify-center text-sm font-bold leading-none hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-red-500';
             removeBtn.addEventListener('click', (e) => {
-                e.preventDefault(); // Prevent wrapper click
-                e.stopPropagation(); // Prevent Selecto click
+                e.preventDefault();
+                e.stopPropagation();
                 removePreviewItem(wrapper);
             });
             wrapper.appendChild(removeBtn);
         }
-    }
 
-    function renderErrorInWrapper(wrapper, fileName) {
-        wrapper.innerHTML = `<span class="text-red-500 text-xs p-1 text-center break-words" title="${escapeHtml(fileName)}">Lỗi đọc file</span>`;
-        wrapper.className = 'relative aspect-square selectable-item image-preview-wrapper flex items-center justify-center rounded-lg overflow-hidden bg-red-50 border border-red-300'; // Error styling
-    }
-
-    function removePreviewItem(wrapper) {
-        // Clear selection state for this item
-        applySelectionStyles(wrapper, false);
-        state.selectedPreviewElements = state.selectedPreviewElements.filter(el => el !== wrapper);
-
-        state.uploadedFilesData.delete(wrapper);
-        wrapper.remove();
-
-        checkPreviewAreaState(); // Update visibility, buttons, layout
-        updateSelectoTargets();
-        // Reset last clicked index if the removed item was the last one clicked
-        if(state.lastClickedItemIndex !== null) {
-             const items = Array.from(getPreviewItems());
-             if (state.lastClickedItemIndex >= items.length) {
-                  state.lastClickedItemIndex = null; // Or set to last valid index if needed
-             }
+        function renderErrorInWrapper(wrapper, fileName) {
+            wrapper.innerHTML = `<span class="text-red-500 text-xs p-1 text-center break-words" title="Lỗi đọc file: ${escapeHtml(fileName)}">Lỗi đọc file</span>`;
+            wrapper.className = 'relative aspect-square selectable-item image-preview-wrapper flex items-center justify-center rounded-lg overflow-hidden bg-red-50 border border-red-300 dark:bg-red-900 dark:border-red-700';
         }
-    }
 
-    // Central function to update layout, visibility, and buttons
-    function checkPreviewAreaState() {
-        const items = getPreviewItems();
-        const hasImages = items.length > 0;
-
-        elements.placeholderText?.classList.toggle('hidden', hasImages);
-        elements.imagePreview?.classList.toggle('hidden', !hasImages);
-        elements.deleteAllButton?.classList.toggle('hidden', !hasImages);
-
-        updatePreviewLayout(items.length); // Update grid layout
-        updateDeleteButtonsState(); // Update 'Delete Selected' button visibility
-    }
-
-    // Function to update the grid layout class
-    function updatePreviewLayout(itemCount) {
-        const preview = elements.imagePreview;
-        if (!preview) return;
-
-        // Remove existing layout classes
-        preview.classList.remove('layout-1', 'layout-2', 'layout-3', 'layout-multi');
-
-        // Apply new layout class based on count
-        if (itemCount === 1) {
-            preview.classList.add('layout-1');
-        } else if (itemCount === 2) {
-            preview.classList.add('layout-2');
-        } else if (itemCount === 3) {
-            preview.classList.add('layout-3');
-        } else if (itemCount >= 4) {
-            preview.classList.add('layout-multi');
-        }
-        // If itemCount is 0, no class is needed (it's hidden anyway)
-    }
-
-
-    function handleDeleteSelected() {
-        state.selectedPreviewElements.forEach(wrapper => {
-            if (wrapper.parentNode) { // Ensure it hasn't been removed already
-                state.uploadedFilesData.delete(wrapper);
-                wrapper.remove();
+        function removePreviewItem(wrapper, confirmDeletion = true) {
+            const imgAlt = wrapper.querySelector('img')?.alt || 'Ảnh không tên';
+            if (confirmDeletion && !confirm(`Bạn có chắc chắn muốn xóa ảnh này?\n(${imgAlt})`)) {
+                return;
             }
-        });
-        resetSelectionUI(); // Clears array, updates buttons
-        checkPreviewAreaState();
-        updateSelectoTargets();
-        state.lastClickedItemIndex = null; // Reset shift-click anchor
-    }
 
-    function handleDeleteAll() {
-        if (confirm('Bạn có chắc chắn muốn xóa TẤT CẢ ảnh đã tải lên?')) {
-            elements.imagePreview.innerHTML = ''; // Clear visually
-            state.uploadedFilesData.clear(); // Clear data
-            resetSelectionUI();
+            applySelectionStyles(wrapper, false);
+            state.selectedPreviewElements = state.selectedPreviewElements.filter(el => el !== wrapper);
+            state.uploadedFilesData.delete(wrapper);
+            wrapper.remove();
+
             checkPreviewAreaState();
             updateSelectoTargets();
-            state.lastClickedItemIndex = null;
-        }
-    }
 
-    // --- Selecto Integration ---
-    function initializeSelecto() {
-        if (selectoInstance) selectoInstance.destroy();
-
-        selectoInstance = new Selecto({
-            container: elements.dropzone,
-            selectableTargets: ['.selectable-item'], // Target the wrappers
-            // selectByClick: true, // <<<--- ORIGINAL
-            selectByClick: false,  // <<<--- MODIFIED: Disable direct click selection on item
-            selectFromInside: false, // Allow selecting by clicking item bg
-            continueSelect: true,
-            toggleContinueSelect: [["ctrl"], ["meta"]], // Use Ctrl/Cmd to toggle single items
-             // Key for range selection (Shift) - checked manually in click handler
-            // keyContainer: window, // Listen globally for keys if needed
-            hitRate: 10, // Adjust tolerance if needed
-            // Prevent selection when clicking buttons/checkboxes within item
-            selectCondition: (e) => {
-                // Allow drag selection if starting on the wrapper or image background
-                // Block drag if starting on checkbox or remove button
-                const target = e.inputEvent.target;
-                return !target.closest('button, input[type="checkbox"]');
-            },
-            // Do not use Selecto's className, manage manually for checkbox/overlay
-             // className: 'selected', // We manage 'is-selected' manually
-        });
-
-        // --- Shift+Click Logic ---
-        // Use a mousedown listener on the container to potentially intercept
-        // before Selecto's internal click handling for shift-selection.
-        elements.imagePreview?.addEventListener('mousedown', (e) => {
-             const targetWrapper = e.target.closest('.selectable-item');
-             // Ensure the actual click target isn't a control element *within* the wrapper for shift-click
-             if (!targetWrapper || e.target.closest('button, input[type="checkbox"]')) {
-                 // Clicked outside an item or on a control, do nothing special for shift-click
-                 return;
-             }
-
-             const items = Array.from(getPreviewItems());
-             const currentIndex = items.indexOf(targetWrapper);
-
-             if (e.shiftKey && state.lastClickedItemIndex !== null && state.lastClickedItemIndex !== currentIndex) {
-                  // Shift key is down, and we have a previous anchor point
-                  e.preventDefault(); // Prevent default text selection/drag behaviors
-
-                  const start = Math.min(state.lastClickedItemIndex, currentIndex);
-                  const end = Math.max(state.lastClickedItemIndex, currentIndex);
-                  const targetsToSelect = items.slice(start, end + 1);
-
-                  // Programmatically set selection in Selecto
-                  selectoInstance?.setSelectedTargets(targetsToSelect);
-
-                  // Update our internal state and UI (selectEnd won't fire for programmatic selection)
-                  state.selectedPreviewElements = targetsToSelect;
-                  items.forEach(item => applySelectionStyles(item, targetsToSelect.includes(item)));
-                  updateDeleteButtonsState();
-
-             } else if (!e.ctrlKey && !e.metaKey) {
-                 // Normal click (or shift click without anchor):
-                 // Since selectByClick is false, a normal click on the item itself does nothing for selection.
-                 // We only update the anchor index IF the click was on the checkbox (handled in checkbox listener).
-                 // state.lastClickedItemIndex = currentIndex; // <<<--- MODIFIED: REMOVED/COMMENTED OUT
-             }
-             // If Ctrl/Meta is pressed, let Selecto handle the toggle IF triggered via clickTarget, don't update anchor
-        });
-
-
-        selectoInstance.on('dragStart', (e) => {
-            // Only allow drag selection if starting on the dropzone background or an item (not controls)
-            if (!e.inputEvent.target.closest('button, input[type="checkbox"]')) {
-                 state.isSelecting = true;
-             } else {
-                 e.stop(); // Prevent drag start if initiated on a button/checkbox
-             }
-        }).on("selectEnd", e => {
-             // This event fires after drag-selection OR after programmatic selection via clickTarget/setSelectedTargets
-             state.selectedPreviewElements = e.selected;
-
-             // Update visual styles for all items based on the final selection
-             const allItems = getPreviewItems();
-             allItems.forEach(item => {
-                 applySelectionStyles(item, e.selected.includes(item));
-             });
-
-             updateDeleteButtonsState();
-             state.isSelecting = false; // Reset flag
-             // Don't reset lastClickedItemIndex here, keep it for next potential shift-click
-        }).on('dragEnd', () => {
-             // Ensure isSelecting is false after any drag attempt finishes
-             state.isSelecting = false;
-        });
-    }
-
-    // Apply/Remove visual styles (border, overlay, checkbox)
-    function applySelectionStyles(element, isSelected) {
-         if (!element) return;
-         element.classList.toggle('is-selected', isSelected);
-         const checkbox = element.querySelector('.preview-checkbox');
-         if (checkbox) checkbox.checked = isSelected;
-    }
-
-
-    function updateSelectoTargets() {
-        if (selectoInstance) {
-            // Make sure Selecto targets elements within the imagePreview container
-            selectoInstance.selectableTargets = ['#imagePreview .selectable-item'];
-        }
-    }
-
-    function resetSelectionUI() {
-         getPreviewItems().forEach(el => applySelectionStyles(el, false));
-         state.selectedPreviewElements = [];
-         state.lastClickedItemIndex = null; // Reset shift-click anchor
-         if (selectoInstance) {
-            selectoInstance.setSelectedTargets([]);
-         }
-         updateDeleteButtonsState();
-    }
-
-    function updateDeleteButtonsState() {
-        if(elements.deleteSelectedButton) {
-             elements.deleteSelectedButton.classList.toggle('hidden', state.selectedPreviewElements.length === 0);
-        }
-    }
-
-    // --- Image Modal (Preview Large) ---
-    function openImageModal(src, previewWrapperElement) { // Added wrapper element
-        state.imageModalState = { rotation: 0, scale: 1, flipped: false }; // Reset state
-        state.currentEditingPreviewWrapper = previewWrapperElement; // Store reference
-        elements.modalImage.src = src;
-        elements.modalImage.style.opacity = '0';
-        elements.modalImage.style.transform = `scale(1) rotate(0deg)`;
-        elements.modalImage.removeAttribute('data-flipped');
-
-        elements.modalImage.onload = () => elements.modalImage.style.opacity = '1';
-        elements.modalImage.onerror = () => {
-            elements.modalImage.onerror = null;
-            elements.modalImage.src = CONFIG.PLACEHOLDER_IMAGE_URL;
-            elements.modalImage.alt = "Lỗi tải ảnh lớn";
-            elements.modalImage.style.opacity = '1';
-        };
-
-        elements.imageModal.classList.remove('hidden');
-        elements.imageModal.classList.add('flex');
-    }
-
-    function closeImageModal() {
-        elements.imageModal.classList.add('hidden');
-        elements.imageModal.classList.remove('flex');
-        elements.modalImage.src = "";
-        elements.modalImage.alt = "Image preview";
-        state.currentEditingPreviewWrapper = null; // Clear reference
-    }
-
-    function handleImageModalAction(action, value) {
-        switch (action) {
-            case 'rotate':
-                state.imageModalState.rotation = (state.imageModalState.rotation + parseInt(value, 10)) % 360;
-                break;
-            case 'zoom':
-                const newScale = state.imageModalState.scale * parseFloat(value);
-                state.imageModalState.scale = Math.max(CONFIG.MIN_ZOOM, Math.min(CONFIG.MAX_ZOOM, newScale));
-                break;
-            case 'flip':
-                state.imageModalState.flipped = !state.imageModalState.flipped;
-                break;
-            case 'download':
-                downloadTransformedImage(); // Existing download function
-                return;
-             case 'apply':
-                 applyTransformationsToThumbnail(); // New function
-                 return; // Don't update transform after applying
-            default:
-                console.warn("Unknown image modal action:", action);
-                return;
-        }
-        updateImageModalTransform();
-    }
-
-    function updateImageModalTransform() {
-      const { rotation, scale, flipped } = state.imageModalState;
-      const scaleX = flipped ? -scale : scale;
-      elements.modalImage.style.transform = `scaleX(${scaleX}) scaleY(${scale}) rotate(${rotation}deg)`;
-    }
-
-    // Function to generate transformed image data and update the thumbnail
-    async function applyTransformationsToThumbnail() {
-        const wrapper = state.currentEditingPreviewWrapper;
-        if (!wrapper) {
-             console.error("No preview wrapper linked for applying transformations.");
-             alert("Lỗi: Không tìm thấy ảnh thumbnail để áp dụng thay đổi.");
-             return;
-        }
-
-        try {
-             const transformedDataUrl = await getTransformedImageDataUrl(); // Use async/await version
-             if (!transformedDataUrl) {
-                  alert("Không thể tạo ảnh đã chỉnh sửa.");
-                  return;
-             }
-
-             // Update the thumbnail image source
-             const thumbImg = wrapper.querySelector('img');
-             if (thumbImg) {
-                 thumbImg.src = transformedDataUrl;
-             }
-
-             // Update the data in our state map
-             const currentData = state.uploadedFilesData.get(wrapper);
-             if (currentData) {
-                  currentData.base64 = transformedDataUrl; // Update base64 data
-                  // Optionally, you might want to clear the 'file' property
-                  // if the transformation makes the original file irrelevant
-                  // currentData.file = null;
-             } else {
-                  // If it wasn't in the map (e.g., original image), add it now with the new base64
-                  state.uploadedFilesData.set(wrapper, { file: null, base64: transformedDataUrl });
-             }
-
-             console.log("Applied transformation to thumbnail:", wrapper);
-             closeImageModal(); // Close modal on successful apply
-
-        } catch (error) {
-             console.error("Error applying transformations:", error);
-             alert(`Đã xảy ra lỗi khi áp dụng thay đổi: ${error.message}`);
-        }
-    }
-
-
-    // --- Canvas Transformation Logic (Shared by Download & Apply) ---
-
-    // Returns a Promise that resolves with the transformed image Data URL or rejects on error
-    function getTransformedImageDataUrl() {
-        return new Promise((resolve, reject) => {
-            const originalSrc = elements.modalImage.src;
-            if (!originalSrc || originalSrc === CONFIG.PLACEHOLDER_IMAGE_URL) {
-                return reject(new Error("Ảnh gốc không hợp lệ hoặc bị lỗi."));
+            const items = Array.from(getPreviewItems());
+            if (state.lastClickedItemIndex !== null && state.lastClickedItemIndex >= items.length) {
+                state.lastClickedItemIndex = null;
             }
+        }
 
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
+        function checkPreviewAreaState() {
+            const items = getPreviewItems();
+            const hasImages = items.length > 0;
 
-            // Handle CORS for external images if needed for canvas tainting
-            if (!originalSrc.startsWith('data:image') && !(new URL(originalSrc, window.location.href).origin === window.location.origin)) {
-                img.crossOrigin = "Anonymous";
-            }
+            elements.placeholderText?.classList.toggle('hidden', hasImages);
+            elements.imagePreview?.classList.toggle('hidden', !hasImages);
 
+            updatePreviewLayout(items.length);
+            updateImageActionStates();
+        }
 
-            img.onload = () => {
-                try {
-                    const { rotation, scale, flipped } = state.imageModalState;
-                    const rad = rotation * Math.PI / 180;
-                    const cos = Math.cos(rad);
-                    const sin = Math.sin(rad);
+        function updatePreviewLayout(itemCount) {
+            const preview = elements.imagePreview;
+            if (!preview) return;
 
-                    // Calculate dimensions considering scale
-                    const scaledWidth = img.naturalWidth * scale;
-                    const scaledHeight = img.naturalHeight * scale;
+            preview.classList.remove('layout-1', 'layout-2', 'layout-3', 'layout-multi');
 
-                    // Calculate bounding box dimensions after rotation
-                    const boundingBoxWidth = Math.abs(scaledWidth * cos) + Math.abs(scaledHeight * sin);
-                    const boundingBoxHeight = Math.abs(scaledWidth * sin) + Math.abs(scaledHeight * cos);
+            if (itemCount === 1) preview.classList.add('layout-1');
+            else if (itemCount === 2) preview.classList.add('layout-2');
+            else if (itemCount === 3) preview.classList.add('layout-3');
+            else if (itemCount >= 4) preview.classList.add('layout-multi');
+        }
 
-                    // Set canvas size to fit the rotated/scaled image
-                    canvas.width = Math.max(1, Math.ceil(boundingBoxWidth)); // Ensure positive dimensions
-                    canvas.height = Math.max(1, Math.ceil(boundingBoxHeight));
+        // --- Image Selection Action Handlers ---
+        function handleDeleteSelected() {
+            const count = state.selectedPreviewElements.length;
+            if (count === 0) return;
 
-                    // Apply transformations
-                    ctx.save();
-                    ctx.translate(canvas.width / 2, canvas.height / 2); // Move origin to canvas center
-                    ctx.rotate(rad); // Rotate
-                    if (flipped) ctx.scale(-1, 1); // Flip horizontally
-                    // Draw the image centered around the new origin
-                    ctx.drawImage(img, -scaledWidth / 2, -scaledHeight / 2, scaledWidth, scaledHeight);
-                    ctx.restore();
-
-                    // Get Data URL
-                    const dataUrl = canvas.toDataURL('image/png'); // Or 'image/jpeg' if preferred
-                    resolve(dataUrl);
-
-                } catch (e) {
-                    console.error("Error during canvas transformation:", e);
-                    reject(new Error("Lỗi xử lý ảnh trên canvas."));
+            if (confirm(`Bạn có chắc chắn muốn xóa ${count} ảnh đã chọn?`)) {
+                for (let i = state.selectedPreviewElements.length - 1; i >= 0; i--) {
+                    const wrapper = state.selectedPreviewElements[i];
+                     if (wrapper.parentNode) {
+                        state.uploadedFilesData.delete(wrapper);
+                        wrapper.remove();
+                     }
                 }
-            };
-
-            img.onerror = (err) => {
-                console.error("Error loading image for canvas:", originalSrc, err)
-                reject(new Error("Không thể tải ảnh gốc để xử lý. Có thể do lỗi CORS nếu ảnh từ nguồn khác."));
-            };
-
-            // Add cache buster for crossOrigin images to potentially avoid tainted canvas in some browsers
-            let srcToLoad = originalSrc;
-            // Only add cache buster if crossOrigin is set
-             if (img.crossOrigin === "Anonymous") {
-                srcToLoad += (srcToLoad.includes('?') ? '&' : '?') + `cachebust=${Date.now()}`;
-             }
-            img.src = srcToLoad;
-        });
-    }
-
-    // Download function now uses the shared canvas logic
-    async function downloadTransformedImage() {
-        try {
-             const dataUrl = await getTransformedImageDataUrl();
-             const blob = dataURItoBlob(dataUrl); // Convert back to blob for download link
-
-             if (blob) {
-                 const url = URL.createObjectURL(blob);
-                 const a = document.createElement('a');
-                 a.href = url;
-                 // Create a filename based on original or just timestamp
-                 const originalName = state.currentEditingPreviewWrapper?.querySelector('img')?.alt || 'transformed_image';
-                 const filename = `${originalName.replace(/\.[^/.]+$/, "")}_${Date.now()}.png`;
-                 a.download = filename;
-                 document.body.appendChild(a);
-                 a.click();
-                 document.body.removeChild(a);
-                 URL.revokeObjectURL(url);
-             } else {
-                 alert("Không thể tạo blob để tải xuống.");
-             }
-        } catch (error) {
-             console.error("Error preparing image for download:", error);
-             alert(`Lỗi khi chuẩn bị ảnh để tải xuống: ${error.message}`);
-        }
-    }
-
-
-    // --- Event Listener Setup ---
-    function setupEventListeners() {
-        // --- Search ---
-        elements.searchInput?.addEventListener('input', debounce(filterAndRenderTable, CONFIG.DEBOUNCE_DELAY));
-
-        // --- Global Actions (Add Button) ---
-        elements.addButton?.addEventListener('click', () => openModal('add'));
-
-        // --- Table Event Delegation ---
-        elements.tableBody?.addEventListener('click', (e) => {
-            const target = e.target;
-            const button = target.closest('button[data-action]');
-            const imgTrigger = target.closest('img[data-action="view-image"]');
-
-            if (button) {
-                const action = button.dataset.action;
-                if (action === 'edit') {
-                    try {
-                        const itemData = JSON.parse(decodeURIComponent(button.dataset.item || '{}'));
-                        if (itemData.id) openModal('edit', itemData);
-                        else console.error("Invalid item data for edit:", button.dataset.item);
-                    } catch (err) { console.error("Error parsing item data for edit:", err); }
-                } else if (action === 'delete') {
-                    const idToDelete = parseInt(button.dataset.id, 10);
-                    if (idToDelete && confirm('Bạn có chắc chắn muốn xóa mục này?')) {
-                        state.allData = state.allData.filter(item => item.id !== idToDelete);
-                        filterAndRenderTable(); // Re-render
-                    }
-                }
-            } else if (imgTrigger && imgTrigger.dataset.src) {
-                // Pass null for wrapper, as this modal instance isn't for applying back to thumb
-                openImageModal(imgTrigger.dataset.src, null);
+                resetSelectionUI();
+                checkPreviewAreaState();
+                updateSelectoTargets();
+                state.lastClickedItemIndex = null;
             }
-        });
+        }
 
-        // --- CRUD Modal ---
-        elements.saveButton?.addEventListener('click', saveData);
-        elements.closeModalButton?.addEventListener('click', closeModal);
-        elements.modalOverlay?.addEventListener('click', closeModal);
+        function handleDeleteAll() {
+            const items = getPreviewItems();
+            if (items.length === 0) return;
 
-        // --- Image Preview Modal ---
-        elements.closeImageModalButton?.addEventListener('click', closeImageModal);
-        elements.imageModalOverlay?.addEventListener('click', closeImageModal);
-        if (elements.imageModalControls) {
-             elements.imageModalControls.forEach(button => {
-                 button.addEventListener('click', () => {
-                     const action = button.dataset.action;
-                     const value = button.dataset.value;
-                     handleImageModalAction(action, value);
+            if (confirm('Bạn có chắc chắn muốn xóa TẤT CẢ ảnh trong khu vực xem trước?')) {
+                items.forEach(wrapper => {
+                    state.uploadedFilesData.delete(wrapper);
+                    wrapper.remove();
+                });
+                resetSelectionUI();
+                checkPreviewAreaState();
+                updateSelectoTargets();
+                state.lastClickedItemIndex = null;
+            }
+        }
+
+        // --- Selecto Integration ---
+        function initializeSelecto() {
+            if (!window.Selecto) {
+                console.error("Selecto library not loaded!");
+                return;
+            }
+            if (selectoInstance) selectoInstance.destroy();
+
+            selectoInstance = new Selecto({
+                container: elements.dropzone,
+                dragContainer: elements.dropzone,
+                selectableTargets: ['.selectable-item.image-preview-wrapper'],
+                selectByClick: false,
+                selectFromInside: false,
+                continueSelect: true,
+                toggleContinueSelect: [["ctrl"], ["meta"]],
+                hitRate: 10,
+                selectCondition: (e) => {
+                    const target = e.inputEvent.target;
+                    return !target.closest('button, input[type="checkbox"], #dynamicActionContainer');
+                },
+            });
+
+             elements.imagePreview?.addEventListener('mousedown', (e) => {
+                 const targetWrapper = e.target.closest('.selectable-item.image-preview-wrapper');
+                 if (!targetWrapper || e.target.closest('button, input[type="checkbox"], #dynamicActionContainer')) {
+                     return;
+                 }
+                 const items = Array.from(getPreviewItems());
+                 const currentIndex = items.indexOf(targetWrapper);
+                 if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                      state.lastClickedItemIndex = currentIndex;
+                 }
+            });
+
+            selectoInstance.on('dragStart', (e) => {
+                if (state.dragEndTimeoutId) {
+                    clearTimeout(state.dragEndTimeoutId);
+                    state.dragEndTimeoutId = null;
+                }
+                if (!e.inputEvent.target.closest('button, input[type="checkbox"], #dynamicActionContainer')) {
+                     state.isSelecting = true;
+                 } else {
+                     e.stop();
+                 }
+            }).on("selectEnd", e => {
+                 state.selectedPreviewElements = e.selected;
+                 const allItems = getPreviewItems();
+                 allItems.forEach(item => {
+                     applySelectionStyles(item, e.selected.includes(item));
                  });
-             });
+                 updateImageActionStates();
+                 state.isSelecting = false;
+
+                 if (!e.isDrag && !e.inputEvent?.shiftKey) {
+                    if (e.added.length === 1 && e.removed.length === 0) {
+                         const items = Array.from(allItems);
+                         state.lastClickedItemIndex = items.indexOf(e.added[0]);
+                     }
+                 }
+
+            }).on('dragEnd', () => {
+                 if (state.dragEndTimeoutId) {
+                     clearTimeout(state.dragEndTimeoutId);
+                 }
+                 state.dragEndTimeoutId = setTimeout(() => {
+                    state.isSelecting = false;
+                    if(elements.fileInput) elements.fileInput.disabled = false;
+                    state.dragEndTimeoutId = null;
+                }, CONFIG.DRAG_END_RESET_DELAY);
+            }).on('select', () => {
+                if(elements.fileInput) elements.fileInput.disabled = true;
+            });
         }
 
+        function applySelectionStyles(element, isSelected) {
+             if (!element) return;
+             element.classList.toggle('is-selected', isSelected);
+             const checkbox = element.querySelector('.preview-checkbox');
+             if (checkbox) checkbox.checked = isSelected;
+        }
 
-        // --- Dropzone (File Upload & Interactions) ---
-        elements.dropzone?.addEventListener('click', (e) => {
-             // Trigger file input only if clicking placeholder/background and not during selection
-             // Also ensure not clicking on an existing item wrapper or its controls
-             if (!state.isSelecting && !e.target.closest('.selectable-item, input, button')) {
-                  elements.fileInput?.click();
+        function updateSelectoTargets() {
+            if (selectoInstance) {
+                selectoInstance.selectableTargets = ['#imagePreview .selectable-item.image-preview-wrapper'];
+            }
+        }
+
+        function resetSelectionUI() {
+             getPreviewItems().forEach(el => applySelectionStyles(el, false));
+             state.selectedPreviewElements = [];
+             state.lastClickedItemIndex = null;
+             if (selectoInstance) {
+                selectoInstance.setSelectedTargets([]);
              }
-        });
-        elements.fileInput?.addEventListener('change', (e) => {
-            if (e.target.files?.length) handleFiles(e.target.files);
-            e.target.value = ''; // Reset input
-        });
-        elements.dropzone?.addEventListener('dragover', (e) => {
-            e.preventDefault();
-             // Add visual cue only if not currently dragging for selection within the dropzone
-             if (!state.isSelecting) {
-                elements.dropzone.classList.add('border-blue-500', 'bg-blue-50');
+             updateImageActionStates();
+        }
+
+        function updateImageActionStates() {
+            const selectedCount = state.selectedPreviewElements.length;
+            const totalItemCount = getPreviewItems().length;
+            const hasImages = totalItemCount > 0;
+
+            const container = elements.dynamicActionContainer;
+            const simpleDeleteBtn = elements.simpleDeleteAllButton;
+            const dropdownWrapper = elements.dropdownWrapper;
+            const deleteSelectedLink = elements.deleteSelectedAction;
+            const countSpan = elements.selectedCount;
+
+            if (!container || !simpleDeleteBtn || !dropdownWrapper || !deleteSelectedLink || !countSpan) {
+                return;
             }
-        });
-        elements.dropzone?.addEventListener('dragleave', (e) => {
-             // Check carefully to prevent flicker when moving over children
-             if (!elements.dropzone.contains(e.relatedTarget)) {
-                 elements.dropzone.classList.remove('border-blue-500', 'bg-blue-50');
-            }
-        });
-        elements.dropzone?.addEventListener('drop', (e) => {
-            e.preventDefault();
-            elements.dropzone.classList.remove('border-blue-500', 'bg-blue-50');
-            // Only handle dropped files if not during an internal drag-select operation
-            if (!state.isSelecting && e.dataTransfer?.files?.length) {
-                handleFiles(e.dataTransfer.files);
-            }
-             state.isSelecting = false; // Reset selection flag after drop regardless
-        });
-        elements.dropzone?.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const items = e.clipboardData?.items;
-            if (!items) return;
-            const filesToUpload = [];
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
-                    const file = items[i].getAsFile();
-                    if (file) filesToUpload.push(file);
+
+            container.classList.toggle('hidden', !hasImages);
+
+            if (hasImages) {
+                const showDropdown = selectedCount > 0;
+                simpleDeleteBtn.classList.toggle('hidden', showDropdown);
+                dropdownWrapper.classList.toggle('hidden', !showDropdown);
+
+                if (showDropdown) {
+                    countSpan.textContent = selectedCount;
+                    deleteSelectedLink.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                    deleteSelectedLink.removeAttribute('aria-disabled');
                 }
+            } else {
+                simpleDeleteBtn.classList.add('hidden');
+                dropdownWrapper.classList.add('hidden');
             }
-            if (filesToUpload.length > 0) handleFiles(filesToUpload);
-            else console.log("No image files found in clipboard data.");
-        });
+        }
 
-        // --- Image Preview Selection/Deletion (within Modal) ---
-        elements.deleteSelectedButton?.addEventListener('click', handleDeleteSelected);
-        elements.deleteAllButton?.addEventListener('click', handleDeleteAll);
+        // --- Image Modal (Using Filerobot Editor) ---
 
+        function openImageModal(src, previewWrapperElement) {
+            // Ensure Filerobot is loaded
+            if (typeof FilerobotImageEditor === 'undefined') {
+                 console.error("FilerobotImageEditor is not loaded!");
+                 alert("Lỗi: Trình chỉnh sửa ảnh chưa sẵn sàng.");
+                 return;
+            }
 
-        // --- Global Drag/Drop Overlay ---
-        // Using document listeners - ensure they don't interfere if nested dropzones exist
-        document.addEventListener('dragenter', (e) => {
-             // Check if files are being dragged
-             if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
-                e.preventDefault();
-                state.dragCounter++;
-                 // Show overlay only on first enter
-                 if (state.dragCounter === 1 && elements.dropzoneOverlay?.classList.contains('hidden')) {
-                    elements.dropzoneOverlay.classList.remove('hidden');
-                    elements.dropzoneOverlay.classList.add('flex');
+            const editorContainer = elements.filerobotEditorContainer;
+            if (!editorContainer) {
+                console.error("Filerobot container element not found!");
+                alert("Lỗi: Không tìm thấy khu vực để hiển thị trình chỉnh sửa ảnh.");
+                return;
+            }
+
+            // Terminate previous instance if exists
+            if (filerobotEditorInstance) {
+                try {
+                    filerobotEditorInstance.terminate();
+                } catch (err) {
+                    console.warn("Error terminating previous Filerobot instance:", err);
                 }
+                filerobotEditorInstance = null;
             }
-        });
-        document.addEventListener('dragleave', (e) => {
-             // Only decrement/hide if leaving the window or to a non-child element
-             if (e.relatedTarget === null || !document.documentElement.contains(e.relatedTarget)) {
-                 if (state.dragCounter > 0) state.dragCounter--;
-                 if (state.dragCounter === 0 && elements.dropzoneOverlay) {
-                    elements.dropzoneOverlay.classList.add('hidden');
-                    elements.dropzoneOverlay.classList.remove('flex');
-                }
-            }
-        });
-        document.addEventListener('dragover', (e) => {
-             // Necessary to allow drop
-             if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
-                e.preventDefault();
-             }
-        });
-        document.addEventListener('drop', (e) => {
-             // Only handle if files were dragged
-             if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
-                e.preventDefault();
-                state.dragCounter = 0;
-                if (elements.dropzoneOverlay) {
-                    elements.dropzoneOverlay.classList.add('hidden');
-                    elements.dropzoneOverlay.classList.remove('flex');
-                }
-                // Note: The actual file handling happens in the *specific* dropzone's drop listener,
-                // this just hides the global overlay.
-            }
-        });
-    }
 
-    // --- Initialization ---
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log("DOM Loaded. Initializing application...");
-        cacheElements();    // Find elements first
-        setupEventListeners(); // Then attach listeners
-        initializeSelecto(); // Then initialize libraries using elements
-        fetchData();        // Then load initial data
-        console.log("Application initialized.");
-    });
+             // Store the reference to the thumbnail wrapper being edited
+            state.currentEditingPreviewWrapper = previewWrapperElement;
 
-  </script>
+            // --- Filerobot Configuration ---
+            const { TABS, TOOLS } = FilerobotImageEditor;
+            const filerobotConfig = {
+                source: src, // The image source (URL or base64)
+                // --- onSave Callback ---
+                showBackButton: true,
+                onSave: (editedImageObject, designState) => {
+                    console.log('Filerobot Saved:', {
+                        base64Length: editedImageObject.imageBase64?.length, // Log length instead of full string
+                        name: editedImageObject.name,
+                        extension: editedImageObject.extension,
+                        mimeType: editedImageObject.mimeType
+                        // designState: designState // Optional: Log the state if needed for debugging
+                    });
+
+                    const wrapper = state.currentEditingPreviewWrapper; // Get the stored wrapper
+                    const newBase64 = editedImageObject.imageBase64;
+
+                    // Update the thumbnail preview if it exists
+                    if (wrapper && newBase64) {
+                        const thumbImg = wrapper.querySelector('img');
+                        if (thumbImg) {
+                            thumbImg.src = newBase64;
+                            // Update alt/title to indicate changes
+                            const baseAlt = thumbImg.alt.replace(/\s*\(đã sửa\)/i, '');
+                            thumbImg.alt = `${baseAlt} (đã sửa)`;
+                            thumbImg.title = thumbImg.alt;
+                        } else {
+                            console.warn("Thumbnail img element not found in wrapper to update:", wrapper);
+                        }
+
+                        // Update the stored data for this wrapper in our state map
+                        const currentData = state.uploadedFilesData.get(wrapper);
+                        if (currentData) {
+                            currentData.base64 = newBase64;
+                            // Nullify the File ref as the base64 is now the source of truth
+                            currentData.file = null;
+                            console.log("Updated base64 data for wrapper:", wrapper);
+                        } else {
+                            console.warn("Data for wrapper not found in map, adding new entry (unexpected).");
+                            state.uploadedFilesData.set(wrapper, { file: null, base64: newBase64 });
+                        }
+                    } else if (!wrapper) {
+                        console.log("Image edited from table view, no thumbnail to update.");
+                    } else if (!newBase64) {
+                        console.error("Filerobot onSave callback did not provide base64 data.");
+                        alert("Lỗi: Không thể lưu thay đổi ảnh.");
+                    }
+
+                    closeImageModal(); // Close our modal after Filerobot saves
+                },
+                // --- Other Filerobot Options (Customize as needed) ---
+                // translations: { // Example Vietnamese translations (Add more if needed)
+                //    save: 'Lưu',
+                //    cancel: 'Hủy',
+                //    close: 'Đóng',
+                //    // ... other keys from Filerobot docs
+                // },
+                // language: 'vi', // Set language if translations are provided
+                tabsIds: [ // Define which editing tabs to show
+                    TABS.ADJUST, TABS.ANNOTATE, TABS.WATERMARK, TABS.FINETUNE, TABS.FILTERS, TABS.RESIZE // Example set
+                 ],
+                 defaultTabId: TABS.ADJUST, // Set default tab
+                 defaultToolId: TOOLS.CROP, // Set default tool on Annotate tab (example)
+            };
+
+            // --- Instantiate and Render ---
+            try {
+                filerobotEditorInstance = new FilerobotImageEditor(editorContainer, filerobotConfig);
+                filerobotEditorInstance.render({
+                    // --- onClose Callback (Inside Render Options) ---
+                    onClose: (closingReason) => {
+                        console.log('Filerobot Closing reason:', closingReason);
+                        closeImageModal(); // Close our modal when Filerobot closes
+                    },
+                });
+
+                // Show our modal containing the editor
+                elements.imageModal.classList.remove('hidden');
+                elements.imageModal.classList.add('flex');
+                elements.closeImageModalButton?.focus(); // Focus our close button
+
+            } catch (error) {
+                console.error("Error initializing or rendering Filerobot Image Editor:", error);
+                alert(`Lỗi khởi tạo trình chỉnh sửa ảnh: ${error.message}`);
+                filerobotEditorInstance = null; // Ensure instance is null on error
+                state.currentEditingPreviewWrapper = null; // Clear wrapper ref on error
+            }
+        }
+
+        function closeImageModal() {
+            // Terminate Filerobot instance if it exists
+            if (filerobotEditorInstance) {
+                try {
+                     filerobotEditorInstance.terminate();
+                     console.log("Filerobot instance terminated.");
+                 } catch (err) {
+                     console.warn("Error terminating Filerobot instance during close:", err);
+                 }
+                filerobotEditorInstance = null;
+            }
+
+            // Hide our modal
+            elements.imageModal.classList.add('hidden');
+            elements.imageModal.classList.remove('flex');
+            // No need to reset src/alt of a non-existent #modalImage
+            state.currentEditingPreviewWrapper = null; // Clear the reference
+        }
+
+        // REMOVED: handleImageModalAction function (now handled by Filerobot)
+        // REMOVED: updateImageModalTransform function (now handled by Filerobot)
+        // REMOVED: getTransformedImageDataUrl function (now handled by Filerobot via onSave)
+        // REMOVED: applyTransformationsToThumbnail function (now handled by Filerobot via onSave)
+        // REMOVED: downloadTransformedImage function (now handled by Filerobot)
+
+
+        // --- Event Listener Setup ---
+        function setupEventListeners() {
+            elements.searchInput?.addEventListener('input', debounce(filterAndRenderTable, CONFIG.DEBOUNCE_DELAY));
+            elements.addButton?.addEventListener('click', () => openModal('add'));
+
+            elements.tableBody?.addEventListener('click', (e) => {
+                const target = e.target;
+                const button = target.closest('button[data-action]');
+                const imgTrigger = target.closest('img[data-action="view-image"]');
+
+                if (button) {
+                    const action = button.dataset.action;
+                    if (action === 'edit') {
+                        try {
+                            const rawData = button.dataset.item;
+                            if (!rawData || rawData === '{}') {
+                                throw new Error("Empty or invalid item data string.");
+                            }
+                            const itemData = JSON.parse(decodeURIComponent(rawData));
+                            if (itemData && itemData.id) {
+                                 openModal('edit', itemData);
+                            } else {
+                                 throw new Error("Parsed data is missing ID or is invalid.");
+                            }
+                        } catch (err) {
+                             console.error("Error parsing item data for edit:", err, button.dataset.item);
+                             alert("Lỗi: Không thể đọc dữ liệu hợp lệ để chỉnh sửa.");
+                         }
+                    } else if (action === 'delete') {
+                        const idToDelete = parseInt(button.dataset.id, 10);
+                        const row = button.closest('tr');
+                        const name = row?.querySelector('td:nth-child(2)')?.textContent || 'mục này';
+                        if (!isNaN(idToDelete) && confirm(`Bạn có chắc chắn muốn xóa "${escapeHtml(name)}"?`)) {
+                            const indexToDelete = state.allData.findIndex(item => item.id === idToDelete);
+                            if (indexToDelete > -1) {
+                                 state.allData.splice(indexToDelete, 1);
+                                 const filteredIndex = state.filteredData.findIndex(item => item.id === idToDelete);
+                                 if (filteredIndex > -1) {
+                                     state.filteredData.splice(filteredIndex, 1);
+                                 }
+                                 renderTablePage();
+                                 alert(`Đã xóa: ${escapeHtml(name)}`);
+                            } else {
+                                console.error("Item to delete not found in allData:", idToDelete);
+                                alert("Lỗi: Không tìm thấy mục cần xóa.");
+                            }
+                        }
+                    }
+                } else if (imgTrigger && imgTrigger.dataset.src && imgTrigger.src !== CONFIG.PLACEHOLDER_IMAGE_URL) {
+                    // *** MODIFIED: Pass null for wrapper when opening from table ***
+                    openImageModal(imgTrigger.dataset.src, null);
+                }
+            });
+
+            elements.saveButton?.addEventListener('click', saveData);
+            elements.closeModalButton?.addEventListener('click', closeModal);
+            elements.modalOverlay?.addEventListener('click', closeModal);
+
+            elements.closeImageModalButton?.addEventListener('click', closeImageModal);
+            elements.imageModalOverlay?.addEventListener('click', closeImageModal);
+
+            // REMOVED: Event listener for old image modal controls
+
+            const dropzone = elements.dropzone;
+            if (dropzone) {
+                dropzone.addEventListener('click', (e) => {
+                     if (!state.isSelecting && !e.target.closest('.selectable-item, input, button, #dynamicActionContainer')) {
+                          elements.fileInput?.click();
+                     }
+                });
+                elements.fileInput?.addEventListener('change', (e) => {
+                    if (e.target.files?.length) handleFiles(e.target.files);
+                    e.target.value = '';
+                });
+                dropzone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                     if (!state.isSelecting) {
+                        dropzone.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900', 'dark:border-blue-400');
+                    }
+                });
+                dropzone.addEventListener('dragleave', (e) => {
+                     if (!dropzone.contains(e.relatedTarget)) {
+                         dropzone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900', 'dark:border-blue-400');
+                    }
+                });
+                dropzone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900', 'dark:border-blue-400');
+                    if (!state.isSelecting && e.dataTransfer?.files?.length) {
+                        handleFiles(e.dataTransfer.files);
+                    } else if (state.isSelecting) {
+                        console.log("Drop event ignored while selecting.");
+                    }
+                     state.isSelecting = false;
+                });
+                dropzone.addEventListener('paste', (e) => {
+                    if (document.activeElement !== dropzone && !elements.imagePreview?.contains(document.activeElement)) {
+                         console.log("Paste ignored, focus not on dropzone/preview area.");
+                         return;
+                    }
+                    e.preventDefault();
+                    const items = e.clipboardData?.items;
+                    if (!items) return;
+
+                    const filesToUpload = [];
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
+                            const file = items[i].getAsFile();
+                            if (file) filesToUpload.push(file);
+                        }
+                    }
+                    if (filesToUpload.length > 0) {
+                         handleFiles(filesToUpload);
+                         console.log(`Pasted ${filesToUpload.length} image file(s).`);
+                     } else {
+                         console.log("No image files found in clipboard data.");
+                     }
+                });
+                dropzone.setAttribute('tabindex', '0');
+            }
+
+            elements.dynamicActionContainer?.addEventListener('click', (e) => {
+                const button = e.target.closest('button');
+                const link = e.target.closest('a[data-action]');
+
+                if (button && button.id === 'simpleDeleteAllButton') {
+                     e.preventDefault();
+                     handleDeleteAll();
+                } else if (link) {
+                    e.preventDefault();
+                    const action = link.dataset.action;
+
+                    if (action === 'delete-selected') {
+                        if (state.selectedPreviewElements.length > 0) {
+                            handleDeleteSelected();
+                        }
+                    } else if (action === 'delete-all-dropdown') {
+                        handleDeleteAll();
+                    }
+                    const dropdownInstance = FlowbiteInstances.getInstance('Dropdown', 'imageActionsDropdown');
+                    dropdownInstance?.hide();
+                }
+            });
+
+            elements.crudModal?.addEventListener('keydown', (e) => {
+                if (elements.crudModal.classList.contains('hidden') || (e.key !== 'Delete' && e.key !== 'Backspace')) {
+                    return;
+                }
+                const activeElement = document.activeElement;
+                const isInputFocused = activeElement && (
+                    activeElement.tagName === 'INPUT' ||
+                    activeElement.tagName === 'TEXTAREA' ||
+                    activeElement.tagName === 'SELECT' ||
+                    activeElement.isContentEditable
+                );
+                if (isInputFocused) {
+                    return;
+                }
+                if (state.selectedPreviewElements.length > 0) {
+                    e.preventDefault();
+                    handleDeleteSelected();
+                }
+            });
+
+            const overlay = elements.dropzoneOverlay;
+            if (overlay) {
+                 document.addEventListener('dragenter', (e) => {
+                     if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+                        e.preventDefault();
+                        state.dragCounter++;
+                         if (state.dragCounter === 1 && overlay.classList.contains('hidden')) {
+                            overlay.classList.remove('hidden');
+                            overlay.classList.add('flex');
+                        }
+                    }
+                 });
+                 document.addEventListener('dragleave', (e) => {
+                     if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+                         e.preventDefault();
+                         if (e.relatedTarget === null || !document.documentElement.contains(e.relatedTarget) || (e.clientX <=0 || e.clientY <=0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) ) {
+                             if (state.dragCounter > 0) state.dragCounter--;
+                             if (state.dragCounter === 0 && !overlay.classList.contains('hidden')) {
+                                overlay.classList.add('hidden');
+                                overlay.classList.remove('flex');
+                            }
+                        }
+                    }
+                 });
+                 document.addEventListener('dragover', (e) => {
+                     if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+                        e.preventDefault();
+                     }
+                 });
+                 document.addEventListener('drop', (e) => {
+                     if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+                        e.preventDefault();
+                        state.dragCounter = 0;
+                        if (!overlay.classList.contains('hidden')) {
+                            overlay.classList.add('hidden');
+                            overlay.classList.remove('flex');
+                        }
+                    }
+                 });
+            }
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM Loaded. Initializing application...");
+            cacheElements();
+            if (!window.Selecto) {
+                console.error("Selecto library failed to load or load after this script.");
+            } else {
+                 initializeSelecto();
+            }
+            // Check Filerobot presence (optional, for early warning)
+            if (typeof FilerobotImageEditor === 'undefined') {
+                console.warn("Filerobot Image Editor library not found at initialization. Ensure the script tag is correct and loads before this script.");
+            }
+            setupEventListeners();
+            fetchData();
+            console.log("Application initialized.");
+        });
+
+      </script>
 </body>
 </html>
